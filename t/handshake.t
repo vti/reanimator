@@ -8,9 +8,9 @@ use Test::More tests => 16;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'HTTP::Server::WebSocket::Handshake';
+use_ok 'Reanimator::Handshake';
 
-my $h = HTTP::Server::WebSocket::Handshake->new;
+my $h = Reanimator::Handshake->new;
 
 ok !$h->is_done;
 ok $h->parse;

@@ -8,9 +8,9 @@ use Test::More tests => 18;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'HTTP::Server::WebSocket::Frame';
+use_ok 'Reanimator::Frame';
 
-my $f = HTTP::Server::WebSocket::Frame->new;
+my $f = Reanimator::Frame->new;
 
 $f->append;
 ok not defined $f->next;
@@ -44,8 +44,8 @@ is $f->next => 'foo';
 is $f->next => 'bar';
 ok not defined $f->next;
 
-$f = HTTP::Server::WebSocket::Frame->new;
+$f = Reanimator::Frame->new;
 is $f->to_string => "\x00\xff";
 
-$f = HTTP::Server::WebSocket::Frame->new('123');
+$f = Reanimator::Frame->new('123');
 is $f->to_string => "\x00123\xff";

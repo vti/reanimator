@@ -8,9 +8,9 @@ use Test::More tests => 60;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'HTTP::Server::WebSocket::Request';
+use_ok 'Reanimator::Request';
 
-my $req = HTTP::Server::WebSocket::Request->new;
+my $req = Reanimator::Request->new;
 
 is $req->state => 'request_line';
 ok !$req->is_done;
@@ -44,7 +44,7 @@ is $req->host          => 'example.com';
 is $req->origin        => 'http://example.com';
 is $req->checksum      => 'fQJ,fN/4F4!~K~MH';
 
-$req = HTTP::Server::WebSocket::Request->new;
+$req = Reanimator::Request->new;
 
 is $req->state => 'request_line';
 ok !$req->is_done;
@@ -69,13 +69,13 @@ is $req->resource_name => '/demo';
 is $req->host          => 'example.com';
 is $req->origin        => 'http://example.com';
 
-$req = HTTP::Server::WebSocket::Request->new;
+$req = Reanimator::Request->new;
 is $req->state => 'request_line';
 ok !$req->is_done;
 ok not defined $req->parse("foo\x0d\x0a");
 ok $req->is_state('error');
 
-$req = HTTP::Server::WebSocket::Request->new;
+$req = Reanimator::Request->new;
 ok $req->parse("GET /demo HTTP/1.1\x0d\x0a");
 ok $req->parse("Upgrade: WebSocket\x0d\x0a");
 ok $req->parse("Connection: Upgrade\x0d\x0a");
@@ -83,6 +83,6 @@ ok $req->parse("Origin: http://example.com\x0d\x0a");
 ok not defined $req->parse("\x0d\x0a");
 is $req->state => 'error';
 
-$req = HTTP::Server::WebSocket::Request->new;
+$req = Reanimator::Request->new;
 ok not defined $req->parse('x' x (1024 * 10));
 is $req->state => 'error';

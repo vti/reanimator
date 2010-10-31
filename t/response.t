@@ -8,9 +8,9 @@ use Test::More tests => 3;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'HTTP::Server::WebSocket::Response';
+use_ok 'Reanimator::Response';
 
-my $res = HTTP::Server::WebSocket::Response->new;
+my $res = Reanimator::Response->new;
 $res->checksum('fQJ,fN/4F4!~K~MH');
 $res->host('example.com');
 $res->resource_name('/demo');
@@ -27,7 +27,7 @@ $string .= "fQJ,fN/4F4!~K~MH";
 
 is $res->to_string => $string;
 
-$res = HTTP::Server::WebSocket::Response->new;
+$res = Reanimator::Response->new;
 $res->version(75);
 $res->host('example.com');
 $res->resource_name('/demo');

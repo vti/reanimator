@@ -6,9 +6,9 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use HTTP::Server::WebSocket;
+use Reanimator;
 
-my $server = HTTP::Server::WebSocket->new;
+my $server = Reanimator->new;
 
 $server->on_connect(
     sub {
