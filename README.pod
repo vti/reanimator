@@ -1,4 +1,4 @@
-=head1 HTTP::Server::WebSocket
+=head1 Reanimator
 
 Simple standalone single-process WebSocket server.
 
