@@ -10,8 +10,8 @@ use ExtUtils::MakeMaker;
 my ($mm) = $ExtUtils::MakeMaker::VERSION =~ /^([^_]+)/;
 
 WriteMakefile(
-    NAME         => 'HTTP::Server::WebSocket',
-    VERSION_FROM => 'lib/HTTP/Server/WebSocket.pm',
+    NAME         => 'Reanimator',
+    VERSION_FROM => 'lib/Reanimator.pm',
     ABSTRACT     => 'Standalone single-process WebSocket server',
     AUTHOR       => 'Viacheslav Tykhanovskyi <vti@cpan.org>',
 
@@ -22,10 +22,8 @@ WriteMakefile(
         : ( META_MERGE => {
                 requires  => {perl => '5.008007'},
                 resources => {
-                    repository =>
-                      'http://github.com/vti/http-server-web-socket',
-                    bugtracker =>
-                      'http://github.com/vti/http-server-web-socket/isues',
+                    repository => 'http://github.com/vti/reanimator',
+                    bugtracker => 'http://github.com/vti/reanimator/isues',
                 },
                 no_index => {directory => [qw/t/]}
             },
