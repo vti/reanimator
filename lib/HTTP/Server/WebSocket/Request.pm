@@ -12,10 +12,13 @@ sub new {
 
     $self->{fields} = {};
 
+    $self->version(76);
     $self->state('request_line');
 
     return $self;
 }
+
+sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
 
 sub challenge { @_ > 1 ? $_[0]->{challenge} = $_[1] : $_[0]->{challenge} }
 sub path { @_ > 1 ? $_[0]->{path} = $_[1] : $_[0]->{path} }
@@ -49,14 +52,19 @@ sub parse {
             $self->{fields}->{$name} = $value;
         }
         else {
-            $self->state('challenge');
+            $self->state('body');
         }
     }
 
-    if ($self->state eq 'challenge') {
-        return 1 unless length $chunk == 8;
+    if ($self->state eq 'body') {
+        if ($self->key1 && $self->key2) {
+            return 1 unless length $chunk == 8;
 
-        $self->challenge($chunk);
+            $self->challenge($chunk);
+        }
+        else {
+            $self->version(75);
+        }
 
         $self->done;
     }
@@ -81,6 +89,7 @@ sub key1 {
     my $self = shift;
 
     my $key = $self->{fields}->{'Sec-WebSocket-Key1'};
+    return unless $key;
 
     return $self->key($key);
 }
@@ -89,6 +98,7 @@ sub key2 {
     my $self = shift;
 
     my $key = $self->{fields}->{'Sec-WebSocket-Key2'};
+    return unless $key;
 
     return $self->key($key);
 }

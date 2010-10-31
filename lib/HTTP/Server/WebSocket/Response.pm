@@ -10,12 +10,16 @@ sub new {
     my $self = {@_};
     bless $self, $class;
 
+    $self->version(76);
+
     return $self;
 }
 
+sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
+
 sub origin { @_ > 1 ? $_[0]->{sec_origin} = $_[1] : $_[0]->{sec_origin} }
-sub host { @_ > 1 ? $_[0]->{sec_host} = $_[1] : $_[0]->{sec_host} }
-sub path { @_ > 1 ? $_[0]->{sec_path} = $_[1] : $_[0]->{sec_path} }
+sub host   { @_ > 1 ? $_[0]->{sec_host}   = $_[1] : $_[0]->{sec_host} }
+sub path   { @_ > 1 ? $_[0]->{sec_path}   = $_[1] : $_[0]->{sec_path} }
 
 sub checksum { @_ > 1 ? $_[0]->{checksum} = $_[1] : $_[0]->{checksum} }
 
@@ -42,7 +46,7 @@ sub to_string {
 
     $string .= "\x0d\x0a";
 
-    $string .= $self->checksum;
+    $string .= $self->checksum if $self->version > 75;
 
     return $string;
 }

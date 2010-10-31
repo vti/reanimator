@@ -27,7 +27,8 @@ sub res {
     my $req = $self->{req};
     my $res = $self->{res};
 
-    $res->checksum($req->checksum);
+    $res->version($req->version);
+    $res->checksum($req->checksum) if $req->version > 75;
     $res->origin($req->origin);
     $res->host($req->host);
     $res->path($req->path);
