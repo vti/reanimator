@@ -1,0 +1,8 @@
+=head1 HTTP::Server::WebSocket
+
+Simple standalone single-process WebSocket server.
+
+    $ perl example/daemon
+    Listening on localhost:3000
+
+Using Safari or Chrome open C<example/index.html> page and enjoy.
