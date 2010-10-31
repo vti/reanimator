@@ -15,13 +15,30 @@ sub new {
     $self->version(76);
     $self->state('request_line');
 
+    $self->{max_request_size} = 2048;
+
     return $self;
 }
 
 sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
 
 sub challenge { @_ > 1 ? $_[0]->{challenge} = $_[1] : $_[0]->{challenge} }
-sub path { @_ > 1 ? $_[0]->{path} = $_[1] : $_[0]->{path} }
+
+sub resource_name {
+    @_ > 1 ? $_[0]->{resource_name} = $_[1] : $_[0]->{resource_name};
+}
+
+sub error {
+    my $self = shift;
+
+    return $self->{error} unless @_;
+
+    my $error = shift;
+    $self->{error} = $error;
+    $self->state('error');
+
+    return $self;
+}
 
 sub parse {
     my $self  = shift;
@@ -29,25 +46,38 @@ sub parse {
 
     return 1 unless length $chunk;
 
+    return if $self->error;
+
     $self->{buffer} .= $chunk;
     $chunk = $self->{buffer};
+
+    if (length $chunk > $self->{max_request_size}) {
+        $self->error('Request is too big');
+        return;
+    }
 
     while ($chunk =~ s/^(.*?)\x0d\x0a//) {
         my $line = $1;
 
         if ($self->state eq 'request_line') {
-            my ($req, $path, $http) = split ' ' => $line;
-            return unless $req && $path && $http;
+            my ($req, $resource_name, $http) = split ' ' => $line;
 
-            return unless $req eq 'GET' && $http eq 'HTTP/1.1';
+            unless ($req && $resource_name && $http) {
+                $self->error('Wrong request line');
+                return;
+            }
 
-            $self->path($path);
+            unless ($req eq 'GET' && $http eq 'HTTP/1.1') {
+                $self->error('Wrong method or http version');
+                return;
+            }
+
+            $self->resource_name($resource_name);
 
             $self->state('fields');
         }
         elsif ($line ne '') {
-            my ($name, $value) = split ':' => $line => 2;
-            $value =~ s/^ // if defined $value && $value ne '';
+            my ($name, $value) = split ': ' => $line => 2;
 
             $self->{fields}->{$name} = $value;
         }
@@ -58,7 +88,12 @@ sub parse {
 
     if ($self->state eq 'body') {
         if ($self->key1 && $self->key2) {
-            return 1 unless length $chunk == 8;
+            return 1 if length $chunk < 8;
+
+            if (length $chunk > 8) {
+                $self->error('Body is too long');
+                return;
+            }
 
             $self->challenge($chunk);
         }
@@ -66,7 +101,10 @@ sub parse {
             $self->version(75);
         }
 
-        $self->done;
+        return $self->done if $self->is_valid;
+
+        $self->error('Not valid request');
+        return;
     }
 
     return 1;
@@ -78,8 +116,8 @@ sub host   { shift->{fields}->{'Host'} }
 sub checksum {
     my $self = shift;
 
-    my $key1      = pack 'N' => $self->key1;
-    my $key2      = pack 'N' => $self->key2;
+    my $key1 = pack 'N' => $self->key1;
+    my $key2 = pack 'N' => $self->key2;
     my $challenge = $self->challenge;
 
     return md5 $key1 . $key2 . $challenge;
@@ -119,10 +157,18 @@ sub key {
     }
 
     if ($spaces == 0) {
-        die 'FUCK';
+        return;
     }
 
     return $number / $spaces;
+}
+
+sub is_valid {
+    my $self = shift;
+
+    return unless $self->host;
+
+    return 1;
 }
 
 1;

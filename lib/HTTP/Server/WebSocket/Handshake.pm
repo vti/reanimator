@@ -14,7 +14,6 @@ sub new {
     bless $self, $class;
 
     $self->{req} = HTTP::Server::WebSocket::Request->new;
-    $self->{res} = HTTP::Server::WebSocket::Response->new;
 
     return $self;
 }
@@ -25,13 +24,16 @@ sub res {
     my $self = shift;
 
     my $req = $self->{req};
-    my $res = $self->{res};
 
-    $res->version($req->version);
+    my $res = HTTP::Server::WebSocket::Response->new(
+        version       => $req->version,
+        host          => $req->host,
+        secure        => 0,
+        resource_name => $req->resource_name,
+        origin        => $req->origin
+    );
+
     $res->checksum($req->checksum) if $req->version > 75;
-    $res->origin($req->origin);
-    $res->host($req->host);
-    $res->path($req->path);
 
     return $res;
 }

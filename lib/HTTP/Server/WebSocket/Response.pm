@@ -3,6 +3,8 @@ package HTTP::Server::WebSocket::Response;
 use strict;
 use warnings;
 
+use HTTP::Server::WebSocket::Location;
+
 sub new {
     my $class = shift;
     $class = ref $class if ref $class;
@@ -17,11 +19,22 @@ sub new {
 
 sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
 
-sub origin { @_ > 1 ? $_[0]->{sec_origin} = $_[1] : $_[0]->{sec_origin} }
-sub host   { @_ > 1 ? $_[0]->{sec_host}   = $_[1] : $_[0]->{sec_host} }
-sub path   { @_ > 1 ? $_[0]->{sec_path}   = $_[1] : $_[0]->{sec_path} }
+sub origin { @_ > 1 ? $_[0]->{origin} = $_[1] : $_[0]->{origin} }
+sub host   { @_ > 1 ? $_[0]->{host}   = $_[1] : $_[0]->{host} }
+sub secure   { @_ > 1 ? $_[0]->{secure}   = $_[1] : $_[0]->{secure} }
+sub resource_name   { @_ > 1 ? $_[0]->{resource_name}   = $_[1] : $_[0]->{resource_name} }
 
 sub checksum { @_ > 1 ? $_[0]->{checksum} = $_[1] : $_[0]->{checksum} }
+
+sub location {
+    my $self = shift;
+
+    return HTTP::Server::WebSocket::Location->new(
+        host          => $self->host,
+        secure        => $self->secure,
+        resource_name => $self->resource_name,
+    )->to_string;
+}
 
 sub to_string {
     my $self = shift;
@@ -35,10 +48,7 @@ sub to_string {
 
     $string .= 'Sec-WebSocket-Origin: ' . $self->origin . "\x0d\x0a";
 
-    my $host = $self->host;
-    $host =~ s/^https?:\/\///;
-    my $location = 'ws://' . $host . $self->path;
-    $string .= 'Sec-WebSocket-Location: ' . $location . "\x0d\x0a";
+    $string .= 'Sec-WebSocket-Location: ' . $self->location . "\x0d\x0a";
 
     foreach my $name (keys %{$self->{fields}}) {
         $string .= $name . ': ' . $self->{fields}->{$name} . "\x0d\x0a";

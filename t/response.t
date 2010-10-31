@@ -12,8 +12,8 @@ use_ok 'HTTP::Server::WebSocket::Response';
 
 my $res = HTTP::Server::WebSocket::Response->new;
 $res->checksum('fQJ,fN/4F4!~K~MH');
-$res->host('http://example.com');
-$res->path('/demo');
+$res->host('example.com');
+$res->resource_name('/demo');
 $res->origin('file://');
 
 my $string = '';
@@ -29,8 +29,8 @@ is $res->to_string => $string;
 
 $res = HTTP::Server::WebSocket::Response->new;
 $res->version(75);
-$res->host('http://example.com');
-$res->path('/demo');
+$res->host('example.com');
+$res->resource_name('/demo');
 $res->origin('file://');
 
 $string = '';
