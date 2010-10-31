@@ -31,7 +31,7 @@ sub new {
     $self->{on_error}   ||= sub { };
 
     $self->{connections} = {};
-    $self->{timers} = {};
+    $self->{timers}      = {};
 
     return $self;
 }
@@ -62,10 +62,10 @@ sub start {
     $self->loop;
 }
 
-sub poll        { shift->{poll} }
-sub server      { shift->{server} }
-sub host        { shift->{host} }
-sub port        { shift->{port} }
+sub poll   { shift->{poll} }
+sub server { shift->{server} }
+sub host   { shift->{host} }
+sub port   { shift->{port} }
 
 sub connections { shift->{connections} }
 sub timers      { shift->{timers} }
@@ -274,6 +274,31 @@ sub drop_connection {
     close $c->socket;
 
     delete $self->connections->{$id};
+}
+
+sub clients {
+    my $self = shift;
+
+    return map { $self->get_connection($_) } grep {
+        $self->connections->{$_}->isa('HTTP::Server::WebSocket::Client')
+    } keys %{$self->connections};
+}
+
+sub slaves {
+    my $self = shift;
+
+    return map { $self->get_connection($_) } grep {
+        $self->connections->{$_}->isa('HTTP::Server::WebSocket::Slave:')
+    } keys %{$self->connections};
+}
+
+sub send_broadcast_message {
+    my $self    = shift;
+    my $message = shift;
+
+    foreach my $client ($self->clients) {
+        $client->send_message($message);
+    }
 }
 
 1;
