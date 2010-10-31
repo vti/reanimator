@@ -3,8 +3,6 @@ package HTTP::Server::WebSocket::Location;
 use strict;
 use warnings;
 
-use URI;
-
 sub new {
     my $class = shift;
 

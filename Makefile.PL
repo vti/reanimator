@@ -41,7 +41,6 @@ WriteMakefile(
         'Errno'       => 0,
         'IO::Poll'    => 0,
         'IO::Socket'  => 0,
-        'URI'         => 0,
     },
     test => {TESTS => 't/*.t t/*/*.t'}
 );
