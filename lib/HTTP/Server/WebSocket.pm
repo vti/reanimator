@@ -4,6 +4,8 @@ use strict;
 use warnings;
 
 use HTTP::Server::WebSocket::Client;
+use HTTP::Server::WebSocket::Slave;
+use HTTP::Server::WebSocket::Timer;
 
 use IO::Socket;
 use IO::Poll qw/POLLIN POLLOUT POLLHUP POLLERR/;
@@ -28,7 +30,8 @@ sub new {
     $self->{on_connect} ||= sub { };
     $self->{on_error}   ||= sub { };
 
-    $self->{clients} = {};
+    $self->{connections} = {};
+    $self->{timers} = {};
 
     return $self;
 }
@@ -59,66 +62,106 @@ sub start {
     $self->loop;
 }
 
-sub poll    { shift->{poll} }
-sub server  { shift->{server} }
-sub host    { shift->{host} }
-sub port    { shift->{port} }
-sub clients { shift->{clients} }
+sub poll        { shift->{poll} }
+sub server      { shift->{server} }
+sub host        { shift->{host} }
+sub port        { shift->{port} }
+
+sub connections { shift->{connections} }
+sub timers      { shift->{timers} }
 
 sub loop {
     my $self = shift;
 
     my $server = $self->server;
     while (1) {
-        while (my $socket = $server->accept) {
-            printf "[New client from %s]\n", $socket->peerhost;
+        $self->_accept_clients;
 
-            $self->add_client($socket);
+        $self->_tick;
+
+        $self->_timers;
+
+        $self->_write;
+
+        $self->_read;
+    }
+}
+
+sub _accept_clients {
+    my $self = shift;
+
+    while (my $socket = $self->server->accept) {
+        printf "[New client from %s]\n", $socket->peerhost;
+
+        $self->add_client($socket);
+    }
+}
+
+sub _tick {
+    my $self = shift;
+
+    $self->poll->poll(0);
+}
+
+sub _timers {
+    my $self = shift;
+
+    foreach my $id (keys %{$self->timers}) {
+        my $timer = $self->timers->{$id};
+
+        if ($timer->{timer}->elapsed) {
+            $timer->{cb}->();
+            delete $self->timers->{$id} if $timer->{timer}->shot;
+        }
+    }
+}
+
+sub _write {
+    my $self = shift;
+
+    foreach my $id (keys %{$self->connections}) {
+        my $c = $self->get_connection($id);
+
+        next unless $c->is_connected;
+        next unless $c->is_writing;
+
+        warn '> ' . $c->buffer if DEBUG;
+
+        my $buffer = $c->buffer;
+        my $br = syswrite($c->socket, $buffer, length $buffer);
+        next unless defined $br;
+
+        if ($br == 0) {
+            next if $! == EAGAIN;
+            $self->drop_connection($id);
+            next;
         }
 
-        $self->poll->poll(0);
+        $c->bytes_written($br);
+    }
+}
 
-        my $clients = $self->clients;
-        foreach my $id (keys %$clients) {
-            my $client = $clients->{$id};
+sub _read {
+    my $self = shift;
 
-            next unless $client->is_connected;
-            next unless $client->has_data;
+    if (my @write = $self->poll->handles(POLLOUT)) {
+        foreach my $socket (@write) {
+            my $rb = sysread($socket, my $chunk, 1024);
+            next unless defined $rb;
 
-            warn '> ' . $client->data if DEBUG;
-
-            my $buffer = $client->data;
-            my $br = syswrite($client->socket, $buffer, length $buffer);
-            next unless defined $br;
-
-            if ($br == 0) {
+            if ($rb == 0) {
                 next if $! == EAGAIN;
-                $self->drop_client("$client");
+
+                $self->drop_connection("$socket");
                 next;
             }
 
-            $client->bytes_written($br);
-        }
+            warn '< ', $chunk if DEBUG;
 
-        if (my @write = $self->poll->handles(POLLOUT)) {
-            foreach my $socket (@write) {
-                my $rb = sysread($socket, my $chunk, 1024);
-                next unless defined $rb;
+            my $client = $self->get_connection("$socket");
 
-                if ($rb == 0) {
-                    next if $! == EAGAIN;
-
-                    $self->drop_client("$socket");
-                    next;
-                }
-
-                warn '< ', $chunk if DEBUG;
-
-                my $client = $self->clients->{"$socket"};
-
-                $self->drop_client("$client")
-                  unless defined $client->read($chunk);
-            }
+            $self->drop_connection("$client")
+              unless defined $client->read($chunk);
         }
     }
 }
@@ -127,31 +170,110 @@ sub add_client {
     my $self   = shift;
     my $socket = shift;
 
-    $self->poll->mask($socket => POLLIN);
-    $self->poll->mask($socket => POLLOUT);
+    $self->_register_socket($socket);
+
+    my $id = "$socket";
 
     my $client = HTTP::Server::WebSocket::Client->new(
+        id         => $id,
         socket     => $socket,
         on_connect => sub {
             $self->on_connect->($self, @_);
         }
     );
 
-    $self->clients->{"$socket"} = $client;
+    $self->connections->{$id} = $client;
 }
 
-sub drop_client {
+sub add_slave {
+    my $self = shift;
+    my $c    = shift;
+
+    my $socket = IO::Socket::INET->new(
+        Proto => 'tcp',
+        Type  => SOCK_STREAM
+    );
+
+    $socket->blocking(0);
+
+    my $id = "$socket";
+
+    $self->_register_socket($socket);
+
+    $c->id($id);
+    $c->socket($socket);
+
+    $self->connections->{$id} = $c;
+
+    my $addr = sockaddr_in($c->port, inet_aton($c->address));
+    my $result = $socket->connect($addr);
+
+    $self->set_timeout(
+        0.5 => sub {
+            if ($socket->connected) {
+                $c->on_connect->($c);
+            }
+        }
+    );
+}
+
+sub set_timeout {
+    my $self = shift;
+    my ($interval, $cb) = @_;
+
+    my $timer =
+      HTTP::Server::WebSocket::Timer->new(interval => $interval, shot => 1);
+
+    $self->_add_timer($timer, $cb);
+
+    return $self;
+}
+
+sub set_interval {
+    my $self = shift;
+    my ($interval, $cb) = @_;
+
+    my $timer = HTTP::Server::WebSocket::Timer->new(interval => $interval);
+
+    $self->_add_timer($timer, $cb);
+
+    return $self;
+}
+
+sub _add_timer {
+    my $self = shift;
+    my ($timer, $cb) = @_;
+
+    $self->timers->{"$timer"} = {timer => $timer, cb => $cb};
+}
+
+sub _register_socket {
+    my $self   = shift;
+    my $socket = shift;
+
+    $self->poll->mask($socket => POLLIN);
+    $self->poll->mask($socket => POLLOUT);
+}
+
+sub get_connection {
     my $self = shift;
     my $id   = shift;
 
-    my $client = $self->clients->{$id};
+    return $self->connections->{$id};
+}
 
-    print "HTTP::Server::WebSocket::Client disconnected\n";
+sub drop_connection {
+    my $self = shift;
+    my $id   = shift;
 
-    $self->poll->remove($client->socket);
-    close $client->socket;
+    my $c = $self->connections->{$id};
 
-    delete $self->clients->{"$client"};
+    print "Connection closed\n";
+
+    $self->poll->remove($c->socket);
+    close $c->socket;
+
+    delete $self->connections->{$id};
 }
 
 1;

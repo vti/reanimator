@@ -3,7 +3,7 @@ package HTTP::Server::WebSocket::Client;
 use strict;
 use warnings;
 
-use base 'HTTP::Server::WebSocket::Stateful';
+use base 'HTTP::Server::WebSocket::Connection';
 
 use HTTP::Server::WebSocket::Handshake;
 use HTTP::Server::WebSocket::Frame;
@@ -25,16 +25,6 @@ sub new {
 
     return $self;
 }
-
-sub socket { @_ > 1 ? $_[0]->{socket} = $_[1] : $_[0]->{socket} }
-
-sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
-
-sub on_disconnect {
-    @_ > 1 ? $_[0]->{on_disconnect} = $_[1] : $_[0]->{on_disconnect};
-}
-sub on_message { @_ > 1 ? $_[0]->{on_message} = $_[1] : $_[0]->{on_message} }
-sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
 
 sub is_connected { shift->is_state('connected') }
 
@@ -74,30 +64,6 @@ sub read {
     }
 
     return 1;
-}
-
-sub write {
-    my $self  = shift;
-    my $chunk = shift;
-
-    $self->{buffer} .= $chunk;
-}
-
-sub has_data {
-    my $self = shift;
-
-    return length $self->{buffer} ? 1 : 0;
-}
-
-sub data { shift->{buffer} }
-
-sub bytes_written {
-    my $self  = shift;
-    my $count = shift;
-
-    substr $self->{buffer}, 0, $count, '';
-
-    return $self;
 }
 
 sub send_message {
