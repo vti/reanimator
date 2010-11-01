@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 60;
+use Test::More tests => 86;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
