@@ -110,8 +110,10 @@ sub parse {
     return 1;
 }
 
-sub origin { shift->{fields}->{'Origin'} }
-sub host   { shift->{fields}->{'Host'} }
+sub origin     { shift->{fields}->{'Origin'} }
+sub host       { shift->{fields}->{'Host'} }
+sub upgrade    { shift->{fields}->{'Upgrade'} }
+sub connection { shift->{fields}->{'Connection'} }
 
 sub checksum {
     my $self = shift;
@@ -166,6 +168,9 @@ sub key {
 sub is_valid {
     my $self = shift;
 
+    return unless $self->upgrade    && $self->upgrade    eq 'WebSocket';
+    return unless $self->connection && $self->connection eq 'Upgrade';
+    return unless $self->origin;
     return unless $self->host;
 
     return 1;

@@ -69,6 +69,13 @@ is $req->resource_name => '/demo';
 is $req->host          => 'example.com';
 is $req->origin        => 'http://example.com';
 
+ok $req->parse("Upgrade: WebSocket\x0d\x0a");
+ok $req->parse("Connection: Upgrade\x0d\x0a");
+ok $req->parse("Host: example.com\x0d\x0a");
+ok $req->parse("Origin: null\x0d\x0a");
+ok $req->parse("\x0d\x0a");
+is $req->state => 'done';
+
 $req = ReAnimator::Request->new;
 is $req->state => 'request_line';
 ok !$req->is_done;
@@ -85,4 +92,30 @@ is $req->state => 'error';
 
 $req = ReAnimator::Request->new;
 ok not defined $req->parse('x' x (1024 * 10));
+is $req->state => 'error';
+
+$req = ReAnimator::Request->new;
+ok $req->parse("GET /demo HTTP/1.1\x0d\x0a");
+ok $req->parse("Upgrade: Foo\x0d\x0a");
+ok $req->parse("Connection: Upgrade\x0d\x0a");
+ok $req->parse("Host: example.com\x0d\x0a");
+ok $req->parse("Origin: http://example.com\x0d\x0a");
+ok not defined $req->parse("\x0d\x0a");
+is $req->state => 'error';
+
+$req = ReAnimator::Request->new;
+ok $req->parse("GET /demo HTTP/1.1\x0d\x0a");
+ok $req->parse("Upgrade: WebSocket\x0d\x0a");
+ok $req->parse("Connection: Bar\x0d\x0a");
+ok $req->parse("Host: example.com\x0d\x0a");
+ok $req->parse("Origin: http://example.com\x0d\x0a");
+ok not defined $req->parse("\x0d\x0a");
+is $req->state => 'error';
+
+$req = ReAnimator::Request->new;
+ok $req->parse("GET /demo HTTP/1.1\x0d\x0a");
+ok $req->parse("Upgrade: WebSocket\x0d\x0a");
+ok $req->parse("Connection: Upgrade\x0d\x0a");
+ok $req->parse("Host: example.com\x0d\x0a");
+ok not defined $req->parse("\x0d\x0a");
 is $req->state => 'error';

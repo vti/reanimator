@@ -79,11 +79,9 @@ sub loop {
     my $self = shift;
 
     while (1) {
-        #$self->_accept_clients;
-
         $self->_loop_once;
 
-        #$self->_timers;
+        $self->_timers;
 
         $self->_read;
 
@@ -101,16 +99,6 @@ sub _loop_once {
     }
     else {
         select(undef, undef, undef, $timeout);
-    }
-}
-
-sub _accept_clients {
-    my $self = shift;
-
-    while (my $socket = $self->server->accept) {
-        printf "[New client from %s]\n", $socket->peerhost;
-
-        $self->add_client($socket);
     }
 }
 
@@ -152,7 +140,7 @@ sub _read {
         my $read = $client->read($chunk);
 
         unless (defined $read) {
-            $self->drop_connection("$client")
+            $self->drop_connection("$socket")
         }
     }
 }
