@@ -1,4 +1,4 @@
-package Reanimator::Timer;
+package ReAnimator::Timer;
 
 use strict;
 use warnings;

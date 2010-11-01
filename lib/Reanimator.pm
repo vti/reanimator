@@ -1,19 +1,22 @@
-package Reanimator;
+package ReAnimator;
 
 use strict;
 use warnings;
 
-use Reanimator::Client;
-use Reanimator::Slave;
-use Reanimator::Timer;
+use ReAnimator::Client;
+use ReAnimator::Slave;
+use ReAnimator::Timer;
+use Time::HiRes 'time';
 
 use IO::Socket;
 use IO::Poll qw/POLLIN POLLOUT POLLHUP POLLERR/;
-use Errno qw/EAGAIN/;
+use Errno qw/EAGAIN EWOULDBLOCK/;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
 
 our $VERSION = '0.0001';
+
+$SIG{PIPE} = 'IGNORE';
 
 sub new {
     my $class = shift;
@@ -59,6 +62,8 @@ sub start {
 
     print "Listening on $host:$port\n";
 
+    $self->poll->mask($self->{server} => POLLIN | POLLOUT);
+
     $self->loop;
 }
 
@@ -73,17 +78,29 @@ sub timers      { shift->{timers} }
 sub loop {
     my $self = shift;
 
-    my $server = $self->server;
     while (1) {
-        $self->_accept_clients;
+        #$self->_accept_clients;
 
-        $self->_tick;
+        $self->_loop_once;
 
-        $self->_timers;
-
-        $self->_write;
+        #$self->_timers;
 
         $self->_read;
+
+        $self->_write;
+    }
+}
+
+sub _loop_once {
+    my $self = shift;
+
+    my $timeout = 0.1;
+
+    if ($self->poll->handles) {
+        $self->poll->poll($timeout);
+    }
+    else {
+        select(undef, undef, undef, $timeout);
     }
 }
 
@@ -95,12 +112,6 @@ sub _accept_clients {
 
         $self->add_client($socket);
     }
-}
-
-sub _tick {
-    my $self = shift;
-
-    $self->poll->poll(0);
 }
 
 sub _timers {
@@ -116,53 +127,78 @@ sub _timers {
     }
 }
 
+sub _read {
+    my $self = shift;
+
+    foreach my $socket ($self->poll->handles(POLLIN | POLLERR)) {
+        warn "read?";
+        if ($socket == $self->server) {
+            $self->add_client($socket->accept);
+            next;
+        }
+
+        my $rb = sysread($socket, my $chunk, 1024);
+        warn "rb=$rb";
+
+        unless ($rb) {
+            next if $! && $! == EAGAIN || $! == EWOULDBLOCK;
+
+            $self->drop_connection("$socket");
+            next;
+        }
+
+        warn '< ', $chunk if DEBUG;
+
+        my $client = $self->get_connection("$socket");
+
+        my $read = $client->read($chunk);
+
+        unless (defined $read) {
+            $self->drop_connection("$client")
+        }
+
+        #$self->poll->mask($socket => POLLOUT);
+    }
+}
+
 sub _write {
     my $self = shift;
 
-    foreach my $id (keys %{$self->connections}) {
+    foreach my $socket ($self->poll->handles(POLLOUT | POLLERR | POLLHUP)) {
+        warn "write?";
+        if ($socket == $self->server) {
+            warn "SERVER";
+            next;
+        }
+
+        my $id = "$socket";
+
         my $c = $self->get_connection($id);
 
-        next unless $c->is_connected;
-        next unless $c->is_writing;
+        #next unless $c->is_connected;
+        #unless ($c->is_writing) {
+            #$self->poll->mask($socket => POLLIN);
+            #next;
+            ##$self->poll->remove($socket);
+        #}
 
         warn '> ' . $c->buffer if DEBUG;
 
         my $buffer = $c->buffer;
         my $br = syswrite($c->socket, $buffer, length $buffer);
-        next unless defined $br;
+        #next unless defined $br;
+        warn "br=$br";
 
-        if ($br == 0) {
-            next if $! == EAGAIN;
+        unless ($br) {
+            next if $! == EAGAIN || $! == EWOULDBLOCK;
+
             $self->drop_connection($id);
             next;
         }
 
         $c->bytes_written($br);
-    }
-}
 
-sub _read {
-    my $self = shift;
-
-    if (my @write = $self->poll->handles(POLLOUT)) {
-        foreach my $socket (@write) {
-            my $rb = sysread($socket, my $chunk, 1024);
-            next unless defined $rb;
-
-            if ($rb == 0) {
-                next if $! == EAGAIN;
-
-                $self->drop_connection("$socket");
-                next;
-            }
-
-            warn '< ', $chunk if DEBUG;
-
-            my $client = $self->get_connection("$socket");
-
-            $self->drop_connection("$client")
-              unless defined $client->read($chunk);
-        }
+        $self->poll->mask($socket => POLLIN) unless $c->is_writing;
     }
 }
 
@@ -172,13 +208,23 @@ sub add_client {
 
     $self->_register_socket($socket);
 
+    printf "[New client from %s]\n", $socket->peerhost;
+
     my $id = "$socket";
 
-    my $client = Reanimator::Client->new(
+    my $client = ReAnimator::Client->new(
         id         => $id,
         socket     => $socket,
         on_connect => sub {
             $self->on_connect->($self, @_);
+        }
+    );
+
+    $client->on_write(
+        sub {
+            my $client = shift;
+
+            $self->poll->mask($client->socket => POLLOUT);
         }
     );
 
@@ -213,8 +259,7 @@ sub set_timeout {
     my $self = shift;
     my ($interval, $cb) = @_;
 
-    my $timer =
-      Reanimator::Timer->new(interval => $interval, shot => 1);
+    my $timer = ReAnimator::Timer->new(interval => $interval, shot => 1);
 
     $self->_add_timer($timer, $cb);
 
@@ -225,7 +270,7 @@ sub set_interval {
     my $self = shift;
     my ($interval, $cb) = @_;
 
-    my $timer = Reanimator::Timer->new(interval => $interval);
+    my $timer = ReAnimator::Timer->new(interval => $interval);
 
     $self->_add_timer($timer, $cb);
 
@@ -244,7 +289,8 @@ sub _register_socket {
     my $socket = shift;
 
     $self->poll->mask($socket => POLLIN);
-    $self->poll->mask($socket => POLLOUT);
+    #$self->poll->mask($socket => POLLIN | POLLOUT);
+    #$self->poll->mask($socket => POLLOUT);
 }
 
 sub get_connection {
@@ -271,17 +317,17 @@ sub drop_connection {
 sub clients {
     my $self = shift;
 
-    return map { $self->get_connection($_) } grep {
-        $self->connections->{$_}->isa('Reanimator::Client')
-    } keys %{$self->connections};
+    return map { $self->get_connection($_) }
+      grep     { $self->connections->{$_}->isa('ReAnimator::Client') }
+      keys %{$self->connections};
 }
 
 sub slaves {
     my $self = shift;
 
-    return map { $self->get_connection($_) } grep {
-        $self->connections->{$_}->isa('Reanimator::Slave:')
-    } keys %{$self->connections};
+    return map { $self->get_connection($_) }
+      grep     { $self->connections->{$_}->isa('ReAnimator::Slave:') }
+      keys %{$self->connections};
 }
 
 sub send_broadcast_message {

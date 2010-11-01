@@ -1,10 +1,10 @@
-package Reanimator::Handshake;
+package ReAnimator::Handshake;
 
 use strict;
 use warnings;
 
-use Reanimator::Request;
-use Reanimator::Response;
+use ReAnimator::Request;
+use ReAnimator::Response;
 
 sub new {
     my $class = shift;
@@ -13,7 +13,7 @@ sub new {
     my $self = {@_};
     bless $self, $class;
 
-    $self->{req} = Reanimator::Request->new;
+    $self->{req} = ReAnimator::Request->new;
 
     return $self;
 }
@@ -25,7 +25,7 @@ sub res {
 
     my $req = $self->{req};
 
-    my $res = Reanimator::Response->new(
+    my $res = ReAnimator::Response->new(
         version       => $req->version,
         host          => $req->host,
         secure        => 0,

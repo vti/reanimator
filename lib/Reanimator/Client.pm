@@ -1,25 +1,20 @@
-package Reanimator::Client;
+package ReAnimator::Client;
 
 use strict;
 use warnings;
 
-use base 'Reanimator::Connection';
+use base 'ReAnimator::Connection';
 
-use Reanimator::Handshake;
-use Reanimator::Frame;
+use ReAnimator::Handshake;
+use ReAnimator::Frame;
 
 sub new {
     my $self = shift->SUPER::new(@_);
 
-    $self->{frame}     = Reanimator::Frame->new;
-    $self->{handshake} = Reanimator::Handshake->new;
+    $self->{frame}     = ReAnimator::Frame->new;
+    $self->{handshake} = ReAnimator::Handshake->new;
 
     $self->{buffer} = '';
-
-    $self->{on_connect}    ||= sub { };
-    $self->{on_disconnect} ||= sub { };
-    $self->{on_message}    ||= sub { };
-    $self->{on_error}      ||= sub { };
 
     $self->state('handshake');
 
@@ -72,7 +67,7 @@ sub send_message {
 
     return unless $self->is_connected;
 
-    my $frame = Reanimator::Frame->new($message);
+    my $frame = ReAnimator::Frame->new($message);
     $self->write($frame->to_string);
 }
 

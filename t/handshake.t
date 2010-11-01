@@ -8,9 +8,9 @@ use Test::More tests => 16;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'Reanimator::Handshake';
+use_ok 'ReAnimator::Handshake';
 
-my $h = Reanimator::Handshake->new;
+my $h = ReAnimator::Handshake->new;
 
 ok !$h->is_done;
 ok $h->parse;

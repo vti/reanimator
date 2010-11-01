@@ -1,4 +1,4 @@
-package Reanimator::Stateful;
+package ReAnimator::Stateful;
 
 use strict;
 use warnings;

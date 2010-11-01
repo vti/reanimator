@@ -8,9 +8,9 @@ use Test::More tests => 18;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'Reanimator::Frame';
+use_ok 'ReAnimator::Frame';
 
-my $f = Reanimator::Frame->new;
+my $f = ReAnimator::Frame->new;
 
 $f->append;
 ok not defined $f->next;
@@ -44,8 +44,8 @@ is $f->next => 'foo';
 is $f->next => 'bar';
 ok not defined $f->next;
 
-$f = Reanimator::Frame->new;
+$f = ReAnimator::Frame->new;
 is $f->to_string => "\x00\xff";
 
-$f = Reanimator::Frame->new('123');
+$f = ReAnimator::Frame->new('123');
 is $f->to_string => "\x00123\xff";

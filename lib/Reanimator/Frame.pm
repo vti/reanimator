@@ -1,4 +1,4 @@
-package Reanimator::Frame;
+package ReAnimator::Frame;
 
 use strict;
 use warnings;

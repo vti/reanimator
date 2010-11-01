@@ -1,14 +1,19 @@
-package Reanimator::Connection;
+package ReAnimator::Connection;
 
 use strict;
 use warnings;
 
-use base 'Reanimator::Stateful';
+use base 'ReAnimator::Stateful';
 
 sub new {
     my $self = shift->SUPER::new(@_);
 
+    $self->{on_connect}    ||= sub { };
+    $self->{on_disconnect} ||= sub { };
+
     $self->{on_message} ||= sub { };
+    $self->{on_write}   ||= sub { };
+    $self->{on_error}   ||= sub { };
 
     return $self;
 }
@@ -23,6 +28,8 @@ sub on_disconnect {
 }
 sub on_message { @_ > 1 ? $_[0]->{on_message} = $_[1] : $_[0]->{on_message} }
 sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
+
+sub on_write { @_ > 1 ? $_[0]->{on_write} = $_[1] : $_[0]->{on_write} }
 
 sub is_connected { shift->socket->connected }
 
@@ -40,6 +47,7 @@ sub write {
     my $chunk = shift;
 
     $self->{buffer} .= $chunk;
+    $self->on_write->($self);
 }
 
 sub is_writing {

@@ -1,9 +1,9 @@
-package Reanimator::Request;
+package ReAnimator::Request;
 
 use strict;
 use warnings;
 
-use base 'Reanimator::Stateful';
+use base 'ReAnimator::Stateful';
 
 use Digest::MD5 'md5';
 

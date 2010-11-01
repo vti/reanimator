@@ -1,4 +1,4 @@
-package Reanimator::Location;
+package ReAnimator::Location;
 
 use strict;
 use warnings;

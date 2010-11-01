@@ -1,9 +1,9 @@
-package Reanimator::Response;
+package ReAnimator::Response;
 
 use strict;
 use warnings;
 
-use Reanimator::Location;
+use ReAnimator::Location;
 
 sub new {
     my $class = shift;
@@ -29,7 +29,7 @@ sub checksum { @_ > 1 ? $_[0]->{checksum} = $_[1] : $_[0]->{checksum} }
 sub location {
     my $self = shift;
 
-    return Reanimator::Location->new(
+    return ReAnimator::Location->new(
         host          => $self->host,
         secure        => $self->secure,
         resource_name => $self->resource_name,
