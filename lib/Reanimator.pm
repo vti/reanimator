@@ -131,14 +131,12 @@ sub _read {
     my $self = shift;
 
     foreach my $socket ($self->poll->handles(POLLIN | POLLERR)) {
-        warn "read?";
         if ($socket == $self->server) {
             $self->add_client($socket->accept);
             next;
         }
 
         my $rb = sysread($socket, my $chunk, 1024);
-        warn "rb=$rb";
 
         unless ($rb) {
             next if $! && $! == EAGAIN || $! == EWOULDBLOCK;
@@ -156,8 +154,6 @@ sub _read {
         unless (defined $read) {
             $self->drop_connection("$client")
         }
-
-        #$self->poll->mask($socket => POLLOUT);
     }
 }
 
@@ -165,9 +161,7 @@ sub _write {
     my $self = shift;
 
     foreach my $socket ($self->poll->handles(POLLOUT | POLLERR | POLLHUP)) {
-        warn "write?";
         if ($socket == $self->server) {
-            warn "SERVER";
             next;
         }
 
@@ -175,19 +169,9 @@ sub _write {
 
         my $c = $self->get_connection($id);
 
-        #next unless $c->is_connected;
-        #unless ($c->is_writing) {
-            #$self->poll->mask($socket => POLLIN);
-            #next;
-            ##$self->poll->remove($socket);
-        #}
-
         warn '> ' . $c->buffer if DEBUG;
 
-        my $buffer = $c->buffer;
-        my $br = syswrite($c->socket, $buffer, length $buffer);
-        #next unless defined $br;
-        warn "br=$br";
+        my $br = syswrite($c->socket, $c->buffer);
 
         unless ($br) {
             next if $! == EAGAIN || $! == EWOULDBLOCK;
@@ -217,14 +201,11 @@ sub add_client {
         socket     => $socket,
         on_connect => sub {
             $self->on_connect->($self, @_);
-        }
-    );
-
-    $client->on_write(
-        sub {
+        },
+        on_write => sub {
             my $client = shift;
 
-            $self->poll->mask($client->socket => POLLOUT);
+            $self->poll->mask($client->socket => POLLIN | POLLOUT);
         }
     );
 
@@ -250,6 +231,14 @@ sub add_slave {
     $c->socket($socket);
 
     $self->connections->{$id} = $c;
+
+    $c->on_write(
+        sub {
+            my $c = shift;
+
+            $self->poll->mask($c->socket => POLLIN | POLLOUT);
+        }
+    );
 
     my $addr = sockaddr_in($c->port, inet_aton($c->address));
     my $result = $socket->connect($addr);
