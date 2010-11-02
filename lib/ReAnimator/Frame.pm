@@ -3,6 +3,8 @@ package ReAnimator::Frame;
 use strict;
 use warnings;
 
+use Encode;
+
 sub new {
     my $class = shift;
     my $buffer = shift;
@@ -31,13 +33,13 @@ sub next {
 
     return unless $self->{buffer} =~ s/^[^\x00]*\x00(.*?)\xff//s;
 
-    return $1;
+    return Encode::decode_utf8($1);
 }
 
 sub to_string {
     my $self = shift;
 
-    return "\x00" . $self->{buffer} . "\xff";
+    return "\x00" . Encode::encode_utf8($self->{buffer}) . "\xff";
 }
 
 1;
