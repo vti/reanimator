@@ -124,6 +124,8 @@ sub _read {
             next;
         }
 
+        my $conn = $self->get_connection("$socket");
+
         my $rb = sysread($socket, my $chunk, 1024);
 
         unless ($rb) {
@@ -135,9 +137,7 @@ sub _read {
 
         warn '< ', $chunk if DEBUG;
 
-        my $client = $self->get_connection("$socket");
-
-        my $read = $client->read($chunk);
+        my $read = $conn->read($chunk);
 
         unless (defined $read) {
             $self->drop_connection("$socket")
@@ -205,15 +205,14 @@ sub add_slave {
     my $c    = shift;
 
     my $socket = IO::Socket::INET->new(
-        Proto => 'tcp',
-        Type  => SOCK_STREAM
+        Proto    => 'tcp',
+        Type     => SOCK_STREAM,
+        Blocking => 0
     );
 
     $socket->blocking(0);
 
     my $id = "$socket";
-
-    $self->_register_socket($socket);
 
     $c->id($id);
     $c->socket($socket);
@@ -228,8 +227,13 @@ sub add_slave {
         }
     );
 
-    my $addr = sockaddr_in($c->port, inet_aton($c->address));
-    my $result = $socket->connect($addr);
+    $self->_register_socket($socket);
+
+    $c->state('connecting');
+
+    my $ip = gethostbyname($c->address);
+    my $addr = sockaddr_in($c->port, $ip);
+    $socket->connect($addr);
 }
 
 sub set_timeout {

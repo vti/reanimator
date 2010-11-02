@@ -15,6 +15,8 @@ sub new {
     $self->{on_write}   ||= sub { };
     $self->{on_error}   ||= sub { };
 
+    $self->state('init');
+
     return $self;
 }
 
