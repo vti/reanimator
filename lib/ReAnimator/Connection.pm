@@ -68,4 +68,5 @@ sub bytes_written {
 
     return $self;
 }
+
 1;
