@@ -131,7 +131,7 @@ sub _read {
         unless ($rb) {
             next if $! && $! == EAGAIN || $! == EWOULDBLOCK;
 
-            $self->drop_connection("$socket");
+            $self->drop_connection($conn);
             next;
         }
 
@@ -140,7 +140,7 @@ sub _read {
         my $read = $conn->read($chunk);
 
         unless (defined $read) {
-            $self->drop_connection("$socket")
+            $self->drop_connection($conn);
         }
     }
 }
@@ -155,22 +155,22 @@ sub _write {
 
         my $id = "$socket";
 
-        my $c = $self->get_connection($id);
+        my $conn = $self->get_connection($id);
 
-        warn '> ' . $c->buffer if DEBUG;
+        warn '> ' . $conn->buffer if DEBUG;
 
-        my $br = syswrite($c->socket, $c->buffer);
+        my $br = syswrite($conn->socket, $conn->buffer);
 
         unless ($br) {
             next if $! == EAGAIN || $! == EWOULDBLOCK;
 
-            $self->drop_connection($id);
+            $self->drop_connection($conn);
             next;
         }
 
-        $c->bytes_written($br);
+        $conn->bytes_written($br);
 
-        $self->poll->mask($socket => POLLIN) unless $c->is_writing;
+        $self->poll->mask($socket => POLLIN) unless $conn->is_writing;
     }
 }
 
@@ -270,6 +270,7 @@ sub _register_socket {
     my $socket = shift;
 
     $self->poll->mask($socket => POLLIN);
+
     #$self->poll->mask($socket => POLLIN | POLLOUT);
     #$self->poll->mask($socket => POLLOUT);
 }
@@ -283,14 +284,16 @@ sub get_connection {
 
 sub drop_connection {
     my $self = shift;
-    my $id   = shift;
+    my $conn = shift;
 
-    my $c = $self->connections->{$id};
+    my $id = $conn->id;
 
     print "Connection closed\n";
 
-    $self->poll->remove($c->socket);
-    close $c->socket;
+    $self->poll->remove($conn->socket);
+    close $conn->socket;
+
+    $conn->on_disconnect->($conn);
 
     delete $self->connections->{$id};
 }
