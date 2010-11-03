@@ -90,9 +90,8 @@ sub _timers {
     foreach my $id (keys %{$self->timers}) {
         my $timer = $self->timers->{$id};
 
-        if ($timer->{timer}->elapsed) {
-            $timer->call;
-            delete $self->timers->{$id} if $timer->{timer}->oneshot;
+        if ($timer->wake_up) {
+            delete $self->timers->{$id} if $timer->one_shot;
         }
     }
 }
@@ -210,7 +209,7 @@ sub add_conn {
     return $self;
 }
 
-sub set_timeout { shift->set_interval(@_, oneshot => 1) }
+sub set_timeout { shift->set_interval(@_, one_shot => 1) }
 
 sub set_interval {
     my $self     = shift;
