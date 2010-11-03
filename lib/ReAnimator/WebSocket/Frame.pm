@@ -1,4 +1,4 @@
-package ReAnimator::Frame;
+package ReAnimator::WebSocket::Frame;
 
 use strict;
 use warnings;

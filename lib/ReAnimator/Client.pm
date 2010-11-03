@@ -5,14 +5,14 @@ use warnings;
 
 use base 'ReAnimator::Connection';
 
-use ReAnimator::Handshake;
-use ReAnimator::Frame;
+use ReAnimator::WebSocket::Handshake;
+use ReAnimator::WebSocket::Frame;
 
 sub new {
     my $self = shift->SUPER::new(@_);
 
-    $self->{frame}     = ReAnimator::Frame->new;
-    $self->{handshake} = ReAnimator::Handshake->new;
+    $self->{frame}     = ReAnimator::WebSocket::Frame->new;
+    $self->{handshake} = ReAnimator::WebSocket::Handshake->new;
 
     $self->{buffer} = '';
 
@@ -56,7 +56,7 @@ sub send_message {
 
     return unless $self->{handshake}->is_done;
 
-    my $frame = ReAnimator::Frame->new($message);
+    my $frame = ReAnimator::WebSocket::Frame->new($message);
     $self->write($frame->to_string);
 }
 
