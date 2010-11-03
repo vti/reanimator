@@ -21,6 +21,8 @@ sub oneshot  { @_ > 1 ? $_[0]->{oneshot}  = $_[1] : $_[0]->{oneshot} }
 sub interval { @_ > 1 ? $_[0]->{interval} = $_[1] : $_[0]->{interval} }
 sub set_time { @_ > 1 ? $_[0]->{set_time} = $_[1] : $_[0]->{set_time} }
 
+sub cb { shift->{cb} }
+
 sub elapsed {
     my $self = shift;
 
@@ -32,6 +34,6 @@ sub elapsed {
     return 0;
 }
 
-sub call { shift->{cb}->() }
+sub call { shift->cb->() }
 
 1;

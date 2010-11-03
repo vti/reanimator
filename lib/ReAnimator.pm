@@ -7,9 +7,9 @@ use ReAnimator::Client;
 use ReAnimator::Socket;
 use ReAnimator::Slave;
 use ReAnimator::Timer;
+use ReAnimator::Loop;
 
 use IO::Socket;
-use IO::Poll qw/POLLIN POLLOUT POLLHUP POLLERR/;
 use Errno qw/EAGAIN EWOULDBLOCK EINPROGRESS/;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
@@ -28,7 +28,7 @@ sub new {
     $self->{host} ||= 'localhost';
     $self->{port} ||= '3000';
 
-    $self->{poll} = IO::Poll->new;
+    $self->{loop} = $self->build_loop;
 
     $self->{on_connect} ||= sub { };
     $self->{on_error}   ||= sub { };
@@ -38,6 +38,8 @@ sub new {
 
     return $self;
 }
+
+sub build_loop { ReAnimator::Loop->build }
 
 sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
 sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
@@ -53,14 +55,14 @@ sub start {
 
     $self->{server} = $socket;
 
-    $self->poll->mask($self->server => POLLIN | POLLOUT);
+    $self->loop->mask_rw($self->server);
 
     print "Listening on $host:$port\n";
 
-    $self->loop;
+    $self->loop_until_i_die;
 }
 
-sub poll   { shift->{poll} }
+sub loop   { shift->{loop} }
 sub server { shift->{server} }
 sub host   { shift->{host} }
 sub port   { shift->{port} }
@@ -68,30 +70,17 @@ sub port   { shift->{port} }
 sub connections { shift->{connections} }
 sub timers      { shift->{timers} }
 
-sub loop {
+sub loop_until_i_die {
     my $self = shift;
 
     while (1) {
-        $self->_loop_once;
+        $self->loop->tick(0.1);
 
         $self->_timers;
 
-        $self->_read;
+        $self->_read($_) for $self->loop->readers;
 
-        $self->_write;
-    }
-}
-
-sub _loop_once {
-    my $self = shift;
-
-    my $timeout = 0.1;
-
-    if ($self->poll->handles) {
-        $self->poll->poll($timeout);
-    }
-    else {
-        select(undef, undef, undef, $timeout);
+        $self->_write($_) for $self->loop->writers;
     }
 }
 
@@ -109,71 +98,67 @@ sub _timers {
 }
 
 sub _read {
-    my $self = shift;
+    my $self   = shift;
+    my $socket = shift;
 
-    foreach my $socket ($self->poll->handles(POLLIN | POLLERR)) {
-        if ($socket == $self->server) {
-            $self->add_client($socket->accept);
-            next;
-        }
+    if ($socket == $self->server) {
+        $self->add_client($socket->accept);
+        return;
+    }
 
-        my $conn = $self->connection($socket);
+    my $conn = $self->connection($socket);
 
-        my $rb = sysread($socket, my $chunk, 1024);
+    my $rb = sysread($socket, my $chunk, 1024);
 
-        unless ($rb) {
-            next if $! && $! == EAGAIN || $! == EWOULDBLOCK;
+    unless ($rb) {
+        return if $! && $! == EAGAIN || $! == EWOULDBLOCK;
 
-            $self->drop($conn);
-            next;
-        }
+        $self->drop($conn);
+        return;
+    }
 
-        warn '< ', $chunk if DEBUG;
+    warn '< ', $chunk if DEBUG;
 
-        my $read = $conn->read($chunk);
+    my $read = $conn->read($chunk);
 
-        unless (defined $read) {
-            $self->drop($conn);
-        }
+    unless (defined $read) {
+        $self->drop($conn);
     }
 }
 
 sub _write {
-    my $self = shift;
+    my $self   = shift;
+    my $socket = shift;
 
-    foreach my $socket ($self->poll->handles(POLLOUT | POLLERR | POLLHUP)) {
-        if ($socket == $self->server) {
-            next;
-        }
+    return if $socket == $self->server;
 
-        my $conn = $self->connection($socket);
+    my $conn = $self->connection($socket);
 
-        if ($conn->is_connecting) {
-            unless ($socket->connected) {
-                $self->drop($conn);
-                next;
-            }
-
-            $conn->connected;
-
-            next unless $conn->is_writing;
-        }
-
-        warn '> ' . $conn->buffer if DEBUG;
-
-        my $br = syswrite($conn->socket, $conn->buffer);
-
-        unless ($br) {
-            next if $! == EAGAIN || $! == EWOULDBLOCK;
-
+    if ($conn->is_connecting) {
+        unless ($socket->connected) {
             $self->drop($conn);
-            next;
+            return;
         }
 
-        $conn->bytes_written($br);
+        $conn->connected;
 
-        $self->poll->mask($socket => POLLIN) unless $conn->is_writing;
+        return unless $conn->is_writing;
     }
+
+    warn '> ' . $conn->buffer if DEBUG;
+
+    my $br = syswrite($conn->socket, $conn->buffer);
+
+    unless ($br) {
+        return if $! == EAGAIN || $! == EWOULDBLOCK;
+
+        $self->drop($conn);
+        return;
+    }
+
+    $conn->bytes_written($br);
+
+    $self->loop->mask_ro($socket) unless $conn->is_writing;
 }
 
 sub add_client {
@@ -217,10 +202,8 @@ sub add_conn {
     my $self = shift;
     my $conn = shift;
 
-    $self->poll->mask($conn->socket => POLLIN | POLLOUT);
-
-    $conn->on_write(
-        sub { $self->poll->mask(shift->socket => POLLIN | POLLOUT) });
+    $self->loop->mask_rw($conn->socket);
+    $conn->on_write(sub { $self->loop->mask_rw($conn->socket) });
 
     $self->connections->{$conn->id} = $conn;
 
@@ -234,18 +217,18 @@ sub set_interval {
     my $interval = shift;
     my $cb       = shift;
 
-    my $timer = ReAnimator::Timer->new(interval => $interval, @_);
+    my $timer = ReAnimator::Timer->new(interval => $interval, cb => $cb, @_);
 
-    $self->_add_timer($timer, $cb);
+    $self->_add_timer($timer);
 
     return $self;
 }
 
 sub _add_timer {
-    my $self = shift;
-    my ($timer, $cb) = @_;
+    my $self  = shift;
+    my $timer = shift;
 
-    $self->timers->{"$timer"} = {timer => $timer, cb => $cb};
+    $self->timers->{"$timer"} = $timer;
 }
 
 sub connection {
@@ -263,7 +246,8 @@ sub drop {
 
     my $id = $conn->id;
 
-    $self->poll->remove($conn->socket);
+    $self->loop->remove($conn->socket);
+
     close $conn->socket;
 
     if ($!) {
