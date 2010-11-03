@@ -39,6 +39,12 @@ $server->on_connect(
             }
         );
 
+        $slave->on_disconnect(
+            sub {
+                $server->drop_connection($client);
+            }
+        );
+
         $client->on_message(
             sub {
                 my ($client, $message) = @_;

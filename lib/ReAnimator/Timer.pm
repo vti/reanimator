@@ -17,8 +17,7 @@ sub new {
     return $self;
 }
 
-sub shot { @_ > 1 ? $_[0]->{shot} = $_[1] : $_[0]->{shot} }
-
+sub oneshot  { @_ > 1 ? $_[0]->{oneshot}  = $_[1] : $_[0]->{oneshot} }
 sub interval { @_ > 1 ? $_[0]->{interval} = $_[1] : $_[0]->{interval} }
 sub set_time { @_ > 1 ? $_[0]->{set_time} = $_[1] : $_[0]->{set_time} }
 
@@ -32,5 +31,7 @@ sub elapsed {
 
     return 0;
 }
+
+sub call { shift->{cb}->() }
 
 1;
