@@ -25,6 +25,8 @@ sub new {
     my $self = {@_};
     bless $self, $class;
 
+    $self->{max_clients} ||= 100;
+
     $self->{host} ||= $ENV{REANIMATOR_HOST} || 'localhost';
     $self->{port} ||= $ENV{REANIMATOR_PORT} || '3000';
 
@@ -54,6 +56,10 @@ sub port   { shift->{port} }
 
 sub connections { shift->{connections} }
 sub timers      { shift->{timers} }
+
+sub max_clients {
+    @_ > 1 ? $_[0]->{max_clients} = $_[1] : $_[0]->{max_clients};
+}
 
 sub start {
     my $self = shift;
@@ -103,11 +109,23 @@ sub _timers {
     }
 }
 
+sub _total_clients {
+    my $self = shift;
+
+    return scalar $self->clients;
+}
+
 sub _read {
     my $self   = shift;
     my $socket = shift;
 
     if ($socket == $self->server) {
+        if ($self->_total_clients >= $self->max_clients) {
+            $self->loop->remove($socket);
+            close $socket;
+            return;
+        }
+
         if (my $sd = $socket->accept) {
             $self->add_client($sd);
         }

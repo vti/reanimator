@@ -24,11 +24,13 @@ $server->on_connect(
         my $slave =
           ReAnimator::Slave->new(address => $irc_server, port => $irc_port);
 
-        $slave->on_message(sub { shift->send_message(@_) });
-
         $slave->on_connect(sub { warn 'Connected to IRC'; });
 
         $slave->on_disconnect(sub { $server->drop($client) });
+
+        $slave->on_message(sub { shift; $client->send_message(@_) });
+
+        $slave->on_error(sub { warn 'Slave error' });
 
         $client->on_message(
             sub {
