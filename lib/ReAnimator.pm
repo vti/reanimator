@@ -108,7 +108,9 @@ sub _read {
     my $socket = shift;
 
     if ($socket == $self->server) {
-        $self->add_client($socket->accept);
+        if (my $sd = $socket->accept) {
+            $self->add_client($sd);
+        }
         return;
     }
 
@@ -119,8 +121,7 @@ sub _read {
     unless ($rb) {
         return if $! && $! == EAGAIN || $! == EWOULDBLOCK;
 
-        $self->drop($conn);
-        return;
+        return $self->drop($conn);
     }
 
     warn '< ', $chunk if DEBUG;
@@ -141,34 +142,25 @@ sub _write {
     my $conn = $self->connection($socket);
 
     if ($conn->is_connecting) {
-        unless ($socket->connected) {
-            $self->drop($conn);
-            return;
-        }
+        return $self->drop($conn) unless $socket->connected;
 
         $conn->connected;
-
-        unless ($conn->is_writing) {
-            $self->loop->mask_ro($conn->socket);
-            return;
-        }
     }
+
+    return $self->loop->mask_ro($conn->socket) unless $conn->is_writing;
 
     warn '> ' . $conn->buffer if DEBUG;
 
-    unless ($conn->is_writing) {
-        $self->drop($conn);
-        return;
-    }
-
     my $br = syswrite($conn->socket, $conn->buffer);
 
-    unless ($br) {
+    if (not defined $br) {
         return if $! == EAGAIN || $! == EWOULDBLOCK;
 
-        $self->drop($conn);
-        return;
+        $conn->error($!);
+        return $self->drop($conn);
     }
+
+    return $self->drop($conn) if $br == 0;
 
     $conn->bytes_written($br);
 
@@ -264,12 +256,8 @@ sub drop {
 
     close $conn->socket;
 
-    if ($!) {
-        print "Connection error: $!\n" if DEBUG;
-
-        my $error = $!;
-        undef $!;
-        $conn->error($error);
+    if (my $e = $conn->error) {
+        print "Connection error: $e\n" if DEBUG;
     }
     else {
         print "Connection closed\n" if DEBUG;
