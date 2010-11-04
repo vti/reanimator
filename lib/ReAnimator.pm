@@ -12,7 +12,7 @@ use ReAnimator::Loop;
 use IO::Socket;
 use Errno qw/EAGAIN EWOULDBLOCK EINPROGRESS/;
 
-use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
+use constant DEBUG => $ENV{REANIMATOR_DEBUG} ? 1 : 0;
 
 our $VERSION = '0.0001';
 
@@ -25,8 +25,8 @@ sub new {
     my $self = {@_};
     bless $self, $class;
 
-    $self->{host} ||= 'localhost';
-    $self->{port} ||= '3000';
+    $self->{host} ||= $ENV{REANIMATOR_HOST} || 'localhost';
+    $self->{port} ||= $ENV{REANIMATOR_PORT} || '3000';
 
     $self->{loop} = $self->build_loop;
 
@@ -39,10 +39,21 @@ sub new {
     return $self;
 }
 
-sub build_loop { ReAnimator::Loop->build }
+sub build_loop   { ReAnimator::Loop->build }
+sub build_socket { shift; ReAnimator::Socket->new(@_) }
+sub build_timer  { shift; ReAnimator::Timer->new(@_) }
+sub build_client { shift; ReAnimator::Client->new(@_) }
 
 sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
 sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
+
+sub loop   { shift->{loop} }
+sub server { shift->{server} }
+sub host   { shift->{host} }
+sub port   { shift->{port} }
+
+sub connections { shift->{connections} }
+sub timers      { shift->{timers} }
 
 sub start {
     my $self = shift;
@@ -50,7 +61,7 @@ sub start {
     my $host = $self->host;
     my $port = $self->port;
 
-    my $socket = ReAnimator::Socket->new($host, $port);
+    my $socket = $self->build_socket($host, $port);
     die "Can't create server" unless $socket;
 
     $self->{server} = $socket;
@@ -62,14 +73,6 @@ sub start {
     $self->loop_until_i_die;
 }
 
-sub loop   { shift->{loop} }
-sub server { shift->{server} }
-sub host   { shift->{host} }
-sub port   { shift->{port} }
-
-sub connections { shift->{connections} }
-sub timers      { shift->{timers} }
-
 sub loop_until_i_die {
     my $self = shift;
 
@@ -78,9 +81,13 @@ sub loop_until_i_die {
 
         $self->_timers;
 
-        $self->_read($_) for $self->loop->readers;
+        for ($self->loop->readers) {
+            $self->_read($_);
+        }
 
-        $self->_write($_) for $self->loop->writers;
+        for ($self->loop->writers) {
+            $self->_write($_);
+        }
     }
 }
 
@@ -174,7 +181,7 @@ sub add_client {
 
     printf "[New client from %s]\n", $socket->peerhost if DEBUG;
 
-    my $client = ReAnimator::Client->new(
+    my $client = $self->build_client(
         socket     => $socket,
         on_connect => sub {
             $self->on_connect->($self, @_);
@@ -190,7 +197,7 @@ sub add_slave {
     my $self = shift;
     my $conn = shift;
 
-    my $socket = ReAnimator::Socket->new;
+    my $socket = $self->build_socket;
     $conn->socket($socket);
 
     $self->add_conn($conn);
@@ -224,7 +231,7 @@ sub set_interval {
     my $interval = shift;
     my $cb       = shift;
 
-    my $timer = ReAnimator::Timer->new(interval => $interval, cb => $cb, @_);
+    my $timer = $self->build_timer(interval => $interval, cb => $cb, @_);
 
     $self->_add_timer($timer);
 
