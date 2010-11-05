@@ -38,6 +38,8 @@ sub new {
     $self->{connections} = {};
     $self->{timers}      = {};
 
+    $self->{handshake_timeout} ||= 5;
+
     return $self;
 }
 
@@ -60,6 +62,10 @@ sub timers      { shift->{timers} }
 
 sub max_clients {
     @_ > 1 ? $_[0]->{max_clients} = $_[1] : $_[0]->{max_clients};
+}
+
+sub handshake_timeout {
+    @_ > 1 ? $_[0]->{handshake_timeout} = $_[1] : $_[0]->{handshake_timeout};
 }
 
 sub listen {
@@ -328,7 +334,7 @@ sub _add_client {
     my $self   = shift;
     my $socket = shift;
 
-    printf "[New client from %s]\n", $socket->peerhost if DEBUG;
+    printf "Connection accepted from %s\n", $socket->peerhost if DEBUG;
 
     my $client = $self->build_client(
         socket       => $socket,
@@ -338,6 +344,15 @@ sub _add_client {
     );
 
     $self->_add_conn($client);
+
+    $self->set_timeout(
+        $self->handshake_timeout => sub {
+            unless ($client->handshake->is_done) {
+                print "Handshake timeout.\n" if DEBUG;
+                $self->drop($client);
+            }
+        }
+    );
 
     return $self;
 }
