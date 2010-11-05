@@ -76,10 +76,10 @@ sub start {
 
     print "Listening on $host:$port\n";
 
-    $self->loop_until_i_die;
+    $self->_loop_until_i_die;
 }
 
-sub loop_until_i_die {
+sub _loop_until_i_die {
     my $self = shift;
 
     while (1) {
@@ -109,7 +109,7 @@ sub _timers {
     }
 }
 
-sub _total_clients {
+sub total_clients {
     my $self = shift;
 
     return scalar $self->clients;
