@@ -14,12 +14,16 @@ sub new {
     $self->{frame}     = ReAnimator::WebSocket::Frame->new;
     $self->{handshake} = ReAnimator::WebSocket::Handshake->new;
 
+    $self->{on_message} ||= sub {};
+
     $self->{buffer} = '';
 
     $self->connected;
 
     return $self;
 }
+
+sub on_message { @_ > 1 ? $_[0]->{on_message} = $_[1] : $_[0]->{on_message} }
 
 sub read {
     my $self  = shift;

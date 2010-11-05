@@ -120,14 +120,14 @@ sub _read {
     my $socket = shift;
 
     if ($socket == $self->server) {
-        if ($self->_total_clients >= $self->max_clients) {
+        if ($self->total_clients >= $self->max_clients) {
             $self->loop->remove($socket);
             close $socket;
             return;
         }
 
         if (my $sd = $socket->accept) {
-            $self->add_client($sd);
+            $self->_add_client($sd);
         }
         return;
     }
@@ -185,7 +185,7 @@ sub _write {
     $self->loop->mask_ro($socket) unless $conn->is_writing;
 }
 
-sub add_client {
+sub _add_client {
     my $self   = shift;
     my $socket = shift;
 
@@ -198,7 +198,7 @@ sub add_client {
         }
     );
 
-    $self->add_conn($client);
+    $self->_add_conn($client);
 
     return $self;
 }
@@ -210,7 +210,7 @@ sub add_slave {
     my $socket = $self->build_socket;
     $conn->socket($socket);
 
-    $self->add_conn($conn);
+    $self->_add_conn($conn);
 
     my $ip = gethostbyname($conn->address);
     my $addr = sockaddr_in($conn->port, $ip);
@@ -222,7 +222,7 @@ sub add_slave {
     return $self;
 }
 
-sub add_conn {
+sub _add_conn {
     my $self = shift;
     my $conn = shift;
 
