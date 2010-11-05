@@ -15,6 +15,8 @@ sub new {
     $self->{on_write} ||= sub { };
     $self->{on_error} ||= sub { };
 
+    $self->{chunks} = [];
+
     $self->state('init');
 
     return $self;
@@ -82,9 +84,40 @@ sub read {
 sub write {
     my $self  = shift;
     my $chunk = shift;
+    my $cb    = shift;
+
+    push @{$self->{chunks}}, [$chunk => $cb];
 
     $self->{buffer} .= $chunk;
     $self->on_write->($self);
+}
+
+sub bytes_written {
+    my $self  = shift;
+    my $count = shift;
+
+    substr $self->{buffer}, 0, $count, '';
+
+    while (my $chunk = $self->{chunks}->[0]) {
+        my $length = length $chunk->[0];
+
+        if ($count >= $length) {
+            shift @{$self->{chunks}};
+
+            $count -= $length;
+
+            $chunk->[1]->($self) if $chunk->[1];
+
+            next if $count > 0;
+
+            last;
+        }
+
+        substr $chunk->[0], 0, $count, '';
+        last;
+    }
+
+    return $self;
 }
 
 sub is_writing {
@@ -94,14 +127,5 @@ sub is_writing {
 }
 
 sub buffer { shift->{buffer} }
-
-sub bytes_written {
-    my $self  = shift;
-    my $count = shift;
-
-    substr $self->{buffer}, 0, $count, '';
-
-    return $self;
-}
 
 1;

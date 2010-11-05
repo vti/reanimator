@@ -14,7 +14,8 @@ sub new {
     $self->{frame}     = ReAnimator::WebSocket::Frame->new;
     $self->{handshake} = ReAnimator::WebSocket::Handshake->new;
 
-    $self->{on_message} ||= sub {};
+    $self->{on_message}   ||= sub { };
+    $self->{on_handshake} ||= sub { };
 
     $self->{buffer} = '';
 
@@ -24,6 +25,10 @@ sub new {
 }
 
 sub on_message { @_ > 1 ? $_[0]->{on_message} = $_[1] : $_[0]->{on_message} }
+
+sub on_handshake {
+    @_ > 1 ? $_[0]->{on_handshake} = $_[1] : $_[0]->{on_handshake};
+}
 
 sub read {
     my $self  = shift;
@@ -38,7 +43,13 @@ sub read {
         if ($handshake->is_done) {
             my $res = $handshake->res->to_string;
 
-            $self->write($res);
+            $self->write(
+                $res => sub {
+                    my $self = shift;
+
+                    $self->on_handshake->($self);
+                }
+            );
 
             return 1;
         }
