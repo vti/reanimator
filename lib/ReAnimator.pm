@@ -307,12 +307,9 @@ sub _error {
     my $self   = shift;
     my $socket = shift;
 
-    warn "error";
-
     my $conn = $self->connection($socket);
     return unless $conn;
 
-    warn "error=$!";
     $conn->error($!);
     return $self->drop($conn);
 }
@@ -321,7 +318,10 @@ sub _hup {
     my $self   = shift;
     my $socket = shift;
 
-    warn "hup";
+    my $conn = $self->connection($socket);
+    return unless $conn;
+
+    return $self->drop($conn);
 }
 
 sub _add_client {
