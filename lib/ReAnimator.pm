@@ -253,7 +253,7 @@ sub _read {
 
     my $conn = $self->connection($socket);
 
-    my $rb = sysread($socket, my $chunk, 1024);
+    my $rb = $socket->sysread(my $chunk, 1024 * 4096, 0);
 
     unless ($rb) {
         return if $! && $! == EAGAIN || $! == EWOULDBLOCK;
@@ -280,7 +280,6 @@ sub _write {
     my $conn = $self->connection($socket);
 
     if ($conn->is_connecting) {
-        warn 'Connecting';
         unless ($socket->connected) {
             $self->error($!) if $!;
             return $self->drop($conn);
@@ -293,7 +292,7 @@ sub _write {
 
     warn '> ' . $conn->buffer if DEBUG;
 
-    my $br = syswrite($conn->socket, $conn->buffer);
+    my $br = $conn->socket->syswrite($conn->buffer, 0);
 
     if (not defined $br) {
         return if $! == EAGAIN || $! == EWOULDBLOCK;
