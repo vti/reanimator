@@ -296,7 +296,7 @@ sub _write {
 
     warn '> ' . $conn->buffer if DEBUG;
 
-    my $br = $conn->socket->syswrite($conn->buffer, 0);
+    my $br = $conn->socket->syswrite($conn->buffer);
 
     if (not defined $br) {
         return if $! == EAGAIN || $! == EWOULDBLOCK;
