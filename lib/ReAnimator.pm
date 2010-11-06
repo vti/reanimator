@@ -128,7 +128,7 @@ sub drop {
 
     $self->loop->remove($conn->socket);
 
-    close $conn->socket;
+    $conn->socket->close;
 
     if (my $e = $conn->error) {
         print "Connection error: $e\n" if DEBUG;
@@ -246,13 +246,14 @@ sub _read {
 
     if ($socket == $self->server) {
         if ($self->total_clients >= $self->max_clients) {
+            print "Too many clients\n" if DEBUG;
             $self->loop->remove($socket);
-            close $socket;
+            $socket->close;
             return;
         }
 
-        if (my $sd = $socket->accept) {
-            $self->_add_client($sd);
+        if (my $socket = $self->server->accept) {
+            $self->_add_client($socket);
         }
         return;
     }
