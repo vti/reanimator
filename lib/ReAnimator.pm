@@ -27,7 +27,7 @@ sub new {
 
     $self->{max_clients} ||= 100;
 
-    $self->{host} ||= $ENV{REANIMATOR_HOST} || 'localhost';
+    $self->{host} ||= $ENV{REANIMATOR_HOST} || '0.0.0.0';
     $self->{port} ||= $ENV{REANIMATOR_PORT} || '3000';
 
     $self->{loop} = $self->build_loop;
