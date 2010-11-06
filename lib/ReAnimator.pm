@@ -347,7 +347,7 @@ sub _add_client {
     $self->set_timeout(
         $self->handshake_timeout => sub {
             unless ($client->handshake->is_done) {
-                print "Handshake timeout.\n" if DEBUG;
+                $client->error('Handshake timeout.');
                 $self->drop($client);
             }
         }
