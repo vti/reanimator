@@ -138,6 +138,7 @@ sub drop {
     }
 
     delete $self->connections->{$id};
+    delete $self->timers->{$id};
 
     return $self;
 }
@@ -151,16 +152,19 @@ sub connection {
     return $self->connections->{$id};
 }
 
-sub set_timeout { shift->set_interval(@_, one_shot => 1) }
+sub set_timeout { shift->set_interval(@_, {one_shot => 1}) }
 
 sub set_interval {
-    my $self     = shift;
+    my $self = shift;
+
+    my $args     = ref $_[-1] eq 'HASH' ? pop : {};
+    my $cb       = pop;
+    my $id       = @_ == 2 ? shift : "$self";
     my $interval = shift;
-    my $cb       = shift;
 
-    my $timer = $self->build_timer(interval => $interval, cb => $cb, @_);
+    my $timer = $self->build_timer(interval => $interval, cb => $cb, %$args);
 
-    $self->_add_timer($timer);
+    $self->_add_timer($id => $timer);
 
     return $self;
 }
@@ -345,11 +349,11 @@ sub _add_client {
     $self->_add_conn($client);
 
     $self->set_timeout(
-        $self->handshake_timeout => sub {
-            unless ($client->handshake->is_done) {
-                $client->error('Handshake timeout.');
-                $self->drop($client);
-            }
+        $client->id => $self->handshake_timeout => sub {
+            return if $client->handshake->is_done;
+
+            $client->error('Handshake timeout.');
+            $self->drop($client);
         }
     );
 
@@ -370,9 +374,10 @@ sub _add_conn {
 
 sub _add_timer {
     my $self  = shift;
+    my $id    = shift;
     my $timer = shift;
 
-    $self->timers->{"$timer"} = $timer;
+    $self->timers->{$id} = $timer;
 }
 
 1;
