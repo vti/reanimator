@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 16;
+use Test::More tests => 18;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -38,3 +38,7 @@ $string .= "Sec-WebSocket-Location: ws://example.com/demo\x0d\x0a";
 $string .= "\x0d\x0a";
 $string .= "fQJ,fN/4F4!~K~MH";
 is $h->res->to_string => $string;
+
+$h = ReAnimator::WebSocket::Handshake->new;
+ok !$h->parse("FOO\x0d\x0a");
+ok $h->error;

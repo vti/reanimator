@@ -18,6 +18,8 @@ sub new {
     return $self;
 }
 
+sub error { shift->{error} }
+
 sub is_done { shift->{req}->is_done }
 
 sub res {
@@ -44,7 +46,13 @@ sub parse {
 
     return 1 if $self->is_done;
 
-    return $self->{req}->parse($chunk);
+    my $rs = $self->{req}->parse($chunk);
+    unless (defined $rs) {
+        $self->{error} = $self->{req}->error;
+        return;
+    }
+
+    return $rs;
 }
 
 1;

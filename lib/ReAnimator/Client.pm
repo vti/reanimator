@@ -40,7 +40,10 @@ sub read {
         my $handshake = $self->handshake;
 
         my $rs = $handshake->parse($chunk);
-        return unless defined $rs;
+        unless (defined $rs) {
+            $self->error($handshake->error);
+            return;
+        }
 
         if ($handshake->is_done) {
             my $res = $handshake->res->to_string;
