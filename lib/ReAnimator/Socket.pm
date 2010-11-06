@@ -6,25 +6,26 @@ use warnings;
 use IO::Socket;
 
 sub new {
-    my $class = shift;
+    my $class  = shift;
+    my %params = @_;
 
-    return $class->_build_server(@_) if @_;
+    return $class->_build_server(@_) if $params{address} && $params{port};
 
     return $class->_build_client;
 }
 
 sub _build_server {
     shift;
-    my ($host, $port) = @_;
+    my %params = @_;
 
     my $socket = IO::Socket::INET->new(
-        Proto       => 'tcp',
-        LocalAddres => $host,
-        LocalPort   => $port,
-        Type        => SOCK_STREAM,
-        Listen      => SOMAXCONN,
-        ReuseAddr   => 1,
-        Blocking    => 0
+        Proto        => 'tcp',
+        LocalAddress => $params{address},
+        LocalPort    => $params{port},
+        Type         => SOCK_STREAM,
+        Listen       => SOMAXCONN,
+        ReuseAddr    => 1,
+        Blocking     => 0
     );
 
     $socket->blocking(0);

@@ -27,8 +27,8 @@ sub new {
 
     $self->{max_clients} ||= 100;
 
-    $self->{host} ||= $ENV{REANIMATOR_HOST} || '0.0.0.0';
-    $self->{port} ||= $ENV{REANIMATOR_PORT} || '3000';
+    $self->{address} ||= $ENV{REANIMATOR_ADDRESS} || '0.0.0.0';
+    $self->{port}    ||= $ENV{REANIMATOR_PORT}    || '3000';
 
     $self->{loop} = $self->build_loop;
 
@@ -49,13 +49,15 @@ sub build_timer  { shift; ReAnimator::Timer->new(@_) }
 sub build_client { shift; ReAnimator::Client->new(@_) }
 sub build_slave  { shift; ReAnimator::Slave->new(@_) }
 
+sub secure { @_ > 1 ? $_[0]->{secure} = $_[1] : $_[0]->{secure} }
+
 sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
 sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
 
-sub loop   { shift->{loop} }
-sub server { shift->{server} }
-sub host   { shift->{host} }
-sub port   { shift->{port} }
+sub loop    { shift->{loop} }
+sub server  { shift->{server} }
+sub address { shift->{address} }
+sub port    { shift->{port} }
 
 sub connections { shift->{connections} }
 sub timers      { shift->{timers} }
@@ -71,17 +73,17 @@ sub handshake_timeout {
 sub listen {
     my $self = shift;
 
-    my $host = $self->host;
-    my $port = $self->port;
+    my $address = $self->address;
+    my $port    = $self->port;
 
-    my $socket = $self->build_socket($host, $port);
+    my $socket = $self->build_socket(address => $address, port => $port);
     die "Can't create server" unless $socket;
 
     $self->{server} = $socket;
 
     $self->loop->mask_rw($self->server);
 
-    print "Listening on $host:$port\n";
+    print "Listening on $address:$port\n";
 
     $self->_loop_until_i_die;
 }
