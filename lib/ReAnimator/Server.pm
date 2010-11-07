@@ -3,7 +3,7 @@ package ReAnimator::Server;
 use strict;
 use warnings;
 
-use base 'EventReactor::Atom';
+use base 'EventReactor::AcceptedAtom';
 
 use ReAnimator::WebSocket::Handshake;
 use ReAnimator::WebSocket::Frame;

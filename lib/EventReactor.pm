@@ -5,8 +5,8 @@ use warnings;
 
 use EventReactor::Atom;
 
-#use EventReactor::Connection;
-use EventReactor::Atom;
+use EventReactor::AcceptedAtom;
+use EventReactor::ConnectedAtom;
 use EventReactor::Timer;
 use EventReactor::Loop;
 
@@ -88,33 +88,42 @@ sub listen {
     $self->_loop_until_i_die;
 }
 
-#sub connect {
-#my $self = shift;
+sub connect {
+    my $self = shift;
+    my %params = @_;
 
-#my $atom   = $self->build_atom(@_);
-#my $socket = $self->build_socket;
-#$atom->socket($socket);
+    my $address = delete $params{address};
+    my $port    = delete $params{port};
 
-#$self->_add_atom($atom);
+    die 'address and port are required' unless $address && $port;
 
-#my $ip = gethostbyname($conn->address);
-#my $addr = sockaddr_in($conn->port, $ip);
+    my $socket = $self->_build_client_socket(%params);
+    my $atom   = $self->_build_connected_atom($socket, @_);
 
-#my $rv = $socket->connect($addr);
+    $self->atoms->{"$socket"} = $atom;
 
-#if (defined $rv && $rv == 0) {
-#$conn->connected;
-#}
-#elsif ($! == EINPROGRESS) {
-#$conn->connecting;
-#}
-#else {
-#$conn->error($!);
-#$self->drop($conn);
-#}
+    $self->loop->mask_rw($socket);
 
-#return $conn;
-#}
+    my $ip = gethostbyname($address);
+    my $addr = sockaddr_in($port, $ip);
+
+    print "Connecting to $address:$port...\n" if DEBUG;
+
+    my $rv = $socket->connect($addr);
+
+    if (defined $rv && $rv == 0) {
+        $atom->connected;
+    }
+    elsif ($! == EINPROGRESS) {
+        $atom->connecting;
+    }
+    else {
+        $atom->error($!);
+        $self->drop($atom);
+    }
+
+    return $atom;
+}
 
 sub drop {
     my $self = shift;
@@ -219,7 +228,7 @@ sub _accept {
 
         print "New connection\n" if DEBUG;
 
-        $atom = $self->_build_accept_atom($socket);
+        $atom = $self->_build_accepted_atom($socket);
         $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
         unless ($self->secure) {
@@ -384,16 +393,38 @@ sub _build_server_socket {
     return $socket;
 }
 
-sub _build_accept_atom {
+sub _build_client_socket {
+    my $self   = shift;
+    my %params = @_;
+
+    my $socket = IO::Socket::INET->new(
+        Proto       => 'tcp',
+        Type        => SOCK_STREAM,
+        Blocking    => 0
+    );
+
+    $socket->blocking(0);
+
+    return $socket;
+}
+
+sub _build_accepted_atom {
     my $self   = shift;
     my $socket = shift;
 
-    return EventReactor::Atom->new(
+    return EventReactor::AcceptedAtom->new(
         socket     => $socket,
         on_connect => sub {
-            $self->on_connect($self);
+            $self->on_connect->($self, shift);
         }
     );
+}
+
+sub _build_connected_atom {
+    my $self   = shift;
+    my $socket = shift;
+
+    return EventReactor::ConnectedAtom->new(socket => $socket, @_);
 }
 
 1;

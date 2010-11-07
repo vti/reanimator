@@ -23,27 +23,27 @@ sub send_broadcast_message {
     my $self    = shift;
     my $message = shift;
 
-    foreach my $client ($self->clients) {
-        $client->send_message($message);
+    foreach my $atom ($self->accepted_atoms) {
+        $atom->send_message($message);
     }
 }
 
-sub _build_accept_atom {
+sub _build_accepted_atom {
     my $self   = shift;
     my $socket = shift;
 
-    my $client;
-    $client = ReAnimator::Server->new(
+    my $server;
+    $server = ReAnimator::Server->new(
         socket     => $socket,
         secure     => $self->secure,
         socket     => $socket,
         on_connect => sub {
             $self->set_timeout(
-                $client => $self->handshake_timeout => sub {
-                    return if $client->handshake->is_done;
+                $server => $self->handshake_timeout => sub {
+                    return if $server->handshake->is_done;
 
-                    $client->error('Handshake timeout.');
-                    $self->drop($client);
+                    $server->error('Handshake timeout.');
+                    $self->drop($server);
                 }
             );
         },
@@ -52,7 +52,7 @@ sub _build_accept_atom {
         }
     );
 
-    return $client;
+    return $server;
 }
 
 1;
