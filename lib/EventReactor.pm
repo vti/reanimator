@@ -3,15 +3,14 @@ package EventReactor;
 use strict;
 use warnings;
 
-use EventReactor::Atom;
-
 use EventReactor::AcceptedAtom;
 use EventReactor::ConnectedAtom;
-use EventReactor::Timer;
 use EventReactor::Loop;
+use EventReactor::Timer;
 
-use IO::Socket;
 use Errno qw/EAGAIN EWOULDBLOCK EINPROGRESS/;
+use IO::Socket;
+require Carp;
 
 use constant DEBUG => $ENV{EVENT_REACTOR_DEBUG} ? 1 : 0;
 
@@ -67,7 +66,7 @@ sub listen {
     my $self = shift;
 
     if ($self->secure) {
-        die 'IO::Socket::SSL is required' unless IO_SOCKET_SSL;
+        Carp::croak q/IO::Socket::SSL is required/ unless IO_SOCKET_SSL;
     }
 
     my $address = $self->address;
@@ -77,7 +76,8 @@ sub listen {
         address => $address,
         port    => $port
     );
-    die "Can't create server" unless $socket;
+
+    Carp::croak qq/Can't create server/ unless $socket;
 
     $self->{server} = $socket;
 
@@ -95,7 +95,7 @@ sub connect {
     my $address = delete $params{address};
     my $port    = delete $params{port};
 
-    die 'address and port are required' unless $address && $port;
+    Carp::croak q/address and port are required/ unless $address && $port;
 
     my $socket = $self->_build_client_socket(%params);
     my $atom   = $self->_build_connected_atom($socket, @_);
@@ -244,7 +244,12 @@ sub _accept {
             SSL_server         => 1,
             SSL_key_file       => 'cakey.pem',
             SSL_cert_file      => 'cacert.pem',
-        ) || die $!;
+        );
+
+        unless ($socket) {
+            $self->drop($atom);
+            return;
+        }
 
         $socket->blocking(0);
 
