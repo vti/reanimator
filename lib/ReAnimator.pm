@@ -5,7 +5,7 @@ use warnings;
 
 use base 'EventReactor';
 
-use ReAnimator::Client;
+use ReAnimator::Server;
 
 sub new {
     my $self = shift->SUPER::new(@_);
@@ -28,12 +28,12 @@ sub send_broadcast_message {
     }
 }
 
-sub _build_client {
+sub _build_atom {
     my $self   = shift;
     my $socket = shift;
 
     my $client;
-    $client = ReAnimator::Client->new(
+    $client = ReAnimator::Server->new(
         socket     => $socket,
         secure     => $self->secure,
         socket     => $socket,

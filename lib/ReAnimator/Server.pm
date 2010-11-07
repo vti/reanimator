@@ -1,9 +1,9 @@
-package ReAnimator::Client;
+package ReAnimator::Server;
 
 use strict;
 use warnings;
 
-use base 'EventReactor::Client';
+use base 'EventReactor::Atom';
 
 use ReAnimator::WebSocket::Handshake;
 use ReAnimator::WebSocket::Frame;

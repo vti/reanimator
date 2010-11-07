@@ -6,7 +6,7 @@ use warnings;
 use EventReactor::Atom;
 
 #use EventReactor::Connection;
-use EventReactor::Client;
+use EventReactor::Atom;
 use EventReactor::Timer;
 use EventReactor::Loop;
 
@@ -219,7 +219,7 @@ sub _accept {
 
         print "New connection\n" if DEBUG;
 
-        $atom = $self->_build_client($socket);
+        $atom = $self->_build_atom($socket);
         $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
         unless ($self->secure) {
@@ -384,11 +384,11 @@ sub _build_server_socket {
     return $socket;
 }
 
-sub _build_client {
+sub _build_atom {
     my $self   = shift;
     my $socket = shift;
 
-    return EventReactor::Client->new(
+    return EventReactor::Atom->new(
         socket     => $socket,
         on_connect => sub {
             $self->on_connect($self);
