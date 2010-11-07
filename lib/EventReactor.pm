@@ -159,7 +159,7 @@ sub set_interval {
 
     my $args     = ref $_[-1] eq 'HASH' ? pop : {};
     my $cb       = pop;
-    my $id       = @_ == 2 ? shift : "$self";
+    my $id       = @_ == 2 ? shift->socket . '' : "$self";
     my $interval = shift;
 
     my $timer = $self->_build_timer(interval => $interval, cb => $cb, %$args);

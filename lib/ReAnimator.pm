@@ -39,7 +39,7 @@ sub _build_atom {
         socket     => $socket,
         on_connect => sub {
             $self->set_timeout(
-                "$socket" => $self->handshake_timeout => sub {
+                $client => $self->handshake_timeout => sub {
                     return if $client->handshake->is_done;
 
                     $client->error('Handshake timeout.');
