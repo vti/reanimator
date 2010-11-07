@@ -219,7 +219,7 @@ sub _accept {
 
         print "New connection\n" if DEBUG;
 
-        $atom = $self->_build_atom($socket);
+        $atom = $self->_build_accept_atom($socket);
         $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
         unless ($self->secure) {
@@ -384,7 +384,7 @@ sub _build_server_socket {
     return $socket;
 }
 
-sub _build_atom {
+sub _build_accept_atom {
     my $self   = shift;
     my $socket = shift;
 

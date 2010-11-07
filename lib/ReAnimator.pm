@@ -28,7 +28,7 @@ sub send_broadcast_message {
     }
 }
 
-sub _build_atom {
+sub _build_accept_atom {
     my $self   = shift;
     my $socket = shift;
 
