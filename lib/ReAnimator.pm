@@ -32,21 +32,23 @@ sub _build_client {
     my $self   = shift;
     my $socket = shift;
 
-    my $client = ReAnimator::Client->new(
-        socket       => $socket,
-        secure       => $self->secure,
-        socket       => $socket,
+    my $client;
+    $client = ReAnimator::Client->new(
+        socket     => $socket,
+        secure     => $self->secure,
+        socket     => $socket,
+        on_connect => sub {
+            $self->set_timeout(
+                "$socket" => $self->handshake_timeout => sub {
+                    return if $client->handshake->is_done;
+
+                    $client->error('Handshake timeout.');
+                    $self->drop($client);
+                }
+            );
+        },
         on_handshake => sub {
             $self->on_connect->($self, @_);
-        }
-    );
-
-    $self->set_timeout(
-        "$socket" => $self->handshake_timeout => sub {
-            return if $client->handshake->is_done;
-
-            $client->error('Handshake timeout.');
-            $self->drop($client);
         }
     );
 

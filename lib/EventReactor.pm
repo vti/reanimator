@@ -15,6 +15,8 @@ use Errno qw/EAGAIN EWOULDBLOCK EINPROGRESS/;
 
 use constant DEBUG => $ENV{EVENT_REACTOR_DEBUG} ? 1 : 0;
 
+use constant IO_SOCKET_SSL => eval { require IO::Socket::SSL; 1 };
+
 our $VERSION = '0.0001';
 
 $SIG{PIPE} = 'IGNORE';
@@ -64,13 +66,16 @@ sub max_clients {
 sub listen {
     my $self = shift;
 
+    if ($self->secure) {
+        die 'IO::Socket::SSL is required' unless IO_SOCKET_SSL;
+    }
+
     my $address = $self->address;
     my $port    = $self->port;
 
     my $socket = $self->_build_server_socket(
         address => $address,
-        port    => $port,
-        secure  => $self->secure
+        port    => $port
     );
     die "Can't create server" unless $socket;
 
@@ -78,7 +83,7 @@ sub listen {
 
     $self->loop->mask_rw($self->server);
 
-    print "Listening on $address:$port\n";
+    print "Listening on $address:$port\n" if DEBUG;
 
     $self->_loop_until_i_die;
 }
@@ -206,20 +211,54 @@ sub _accept {
     my $self = shift;
     my $atom = shift;
 
-    my $socket = $atom ? $atom->socket : $self->server;
+    if (!$atom) {
+        my $socket = $self->server->accept;
+        return unless $socket;
 
-    if (my $socket = $self->server->accept) {
+        my $id = "$socket";
+
         print "New connection\n" if DEBUG;
 
-        my $atom = $self->_build_client($socket);
-        $atom->accepted;
-
+        $atom = $self->_build_client($socket);
         $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
+
+        unless ($self->secure) {
+            $self->atoms->{"$socket"} = $atom;
+
+            $self->loop->mask_rw($atom->socket);
+            return $atom->accepted;
+        }
+
+        $socket = IO::Socket::SSL->start_SSL(
+            $socket,
+            SSL_startHandshake => 0,
+            SSL_server         => 1,
+            SSL_key_file       => 'cakey.pem',
+            SSL_cert_file      => 'cacert.pem',
+        ) || die $!;
+
+        $socket->blocking(0);
 
         $self->atoms->{"$socket"} = $atom;
 
-        $self->loop->mask_rw($atom->socket);
+        if ($socket->accept_SSL) {
+            $self->loop->mask_rw($atom->socket);
+            return $atom->accepted;
+        }
+        elsif ($! && $! == EAGAIN) {
+            $self->loop->mask_ro($socket);
+            return;
+        }
     }
+    else {
+        my $socket = $atom->socket;
+
+        $atom->{socket} = $socket;
+        return $atom->accepted if $socket->accept_SSL;
+        return if $! && $! != EAGAIN;
+    }
+
+    $self->drop($atom);
 }
 
 sub _read {
@@ -277,8 +316,6 @@ sub _write {
 
     my $br = $atom->socket->syswrite($atom->buffer);
 
-    warn "br=$br";
-
     if (not defined $br) {
         return if $! == EAGAIN || $! == EWOULDBLOCK;
 
@@ -314,23 +351,13 @@ sub _hup {
     return $self->drop($atom);
 }
 
-#sub _add_atom {
-#my $self = shift;
-#my $atom = shift;
-
-#$self->loop->mask_rw($conn->socket);
-
-#$conn->on_write(sub { $self->loop->mask_rw($conn->socket) });
-
-#$self->atoms->{"$socket"} = {socket => $conn, atom => $atom};
-
-#return $self;
-#}
-
 sub _add_timer {
     my $self  = shift;
     my $id    = shift;
     my $timer = shift;
+
+    die 'Unknown timer id'
+      unless $self->server eq $id || exists $self->atoms->{$id};
 
     $self->timers->{$id} = $timer;
 }

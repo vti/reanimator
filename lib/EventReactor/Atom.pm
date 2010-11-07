@@ -48,6 +48,12 @@ sub error {
     return $self;
 }
 
+sub accepting    { shift->state('accepting') }
+sub is_accepting { shift->is_state('accepting') }
+
+sub accepted    { shift->connected }
+sub is_accepted { shift->state('accepted') }
+
 sub connecting    { shift->state('connecting') }
 sub is_connecting { shift->is_state('connecting') }
 
