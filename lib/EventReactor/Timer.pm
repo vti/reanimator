@@ -1,9 +1,11 @@
-package ReAnimator::Timer;
+package EventReactor::Timer;
 
 use strict;
 use warnings;
 
 use Time::HiRes 'time';
+
+require Carp;
 
 sub new {
     my $class = shift;
@@ -14,6 +16,8 @@ sub new {
 
     $self->{set_time} = time;
     $self->{called}   = 0;
+
+    Carp::croak qq/Interval is required/ unless $self->{interval};
 
     return $self;
 }

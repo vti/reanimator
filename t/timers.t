@@ -9,12 +9,12 @@ use Time::HiRes 'usleep';
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use_ok 'ReAnimator::Timer';
+use_ok 'EventReactor::Timer';
 
 my $t;
 
 my $cb = 0;
-$t = ReAnimator::Timer->new(
+$t = EventReactor::Timer->new(
     interval => 0.1,
     one_shot => 1,
     cb       => sub { $cb = 1 }
@@ -27,7 +27,7 @@ usleep 110_000;
 ok !$t->wake_up;
 
 $cb = 0;
-$t = ReAnimator::Timer->new(
+$t = EventReactor::Timer->new(
     interval => 0.1,
     cb       => sub { $cb++ }
 );

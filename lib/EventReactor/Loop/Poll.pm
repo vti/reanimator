@@ -1,4 +1,4 @@
-package ReAnimator::Loop::Poll;
+package EventReactor::Loop::Poll;
 
 use strict;
 use warnings;

@@ -21,8 +21,11 @@ sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
 
 sub origin { @_ > 1 ? $_[0]->{origin} = $_[1] : $_[0]->{origin} }
 sub host   { @_ > 1 ? $_[0]->{host}   = $_[1] : $_[0]->{host} }
-sub secure   { @_ > 1 ? $_[0]->{secure}   = $_[1] : $_[0]->{secure} }
-sub resource_name   { @_ > 1 ? $_[0]->{resource_name}   = $_[1] : $_[0]->{resource_name} }
+sub secure { @_ > 1 ? $_[0]->{secure} = $_[1] : $_[0]->{secure} }
+
+sub resource_name {
+    @_ > 1 ? $_[0]->{resource_name} = $_[1] : $_[0]->{resource_name};
+}
 
 sub checksum { @_ > 1 ? $_[0]->{checksum} = $_[1] : $_[0]->{checksum} }
 

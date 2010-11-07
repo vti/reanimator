@@ -3,7 +3,7 @@ package ReAnimator::Client;
 use strict;
 use warnings;
 
-use base 'ReAnimator::Connection';
+use base 'EventReactor::Client';
 
 use ReAnimator::WebSocket::Handshake;
 use ReAnimator::WebSocket::Frame;
@@ -12,14 +12,10 @@ sub new {
     my $self = shift->SUPER::new(@_);
 
     $self->{frame}     = ReAnimator::WebSocket::Frame->new;
-    $self->{handshake} = ReAnimator::WebSocket::Handshake->new;
+    $self->{handshake} = ReAnimator::WebSocket::Handshake->new(secure => $self->secure);
 
     $self->{on_message}   ||= sub { };
     $self->{on_handshake} ||= sub { };
-
-    $self->{buffer} = '';
-
-    $self->connected;
 
     return $self;
 }

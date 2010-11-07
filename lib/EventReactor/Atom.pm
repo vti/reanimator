@@ -1,9 +1,9 @@
-package ReAnimator::Connection;
+package EventReactor::Atom;
 
 use strict;
 use warnings;
 
-use base 'ReAnimator::Stateful';
+use base 'EventReactor::Stateful';
 
 sub new {
     my $self = shift->SUPER::new(@_);
@@ -16,14 +16,15 @@ sub new {
     $self->{on_error} ||= sub { };
 
     $self->{chunks} = [];
+    $self->{buffer} = '';
 
-    $self->state('init');
+    $self->state('accepting');
 
     return $self;
 }
 
-sub id {"$_[0]->{socket}"}
 sub socket { @_ > 1 ? $_[0]->{socket} = $_[1] : $_[0]->{socket} }
+sub secure { @_ > 1 ? $_[0]->{secure} = $_[1] : $_[0]->{secure} }
 
 sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
 
