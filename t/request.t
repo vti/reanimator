@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 86;
+use Test::More tests => 87;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -45,7 +45,6 @@ is $req->origin        => 'http://example.com';
 is $req->checksum      => 'fQJ,fN/4F4!~K~MH';
 
 $req = ReAnimator::WebSocket::Request->new;
-
 is $req->state => 'request_line';
 ok !$req->is_done;
 ok $req->parse;
@@ -69,6 +68,8 @@ is $req->resource_name => '/demo';
 is $req->host          => 'example.com';
 is $req->origin        => 'http://example.com';
 
+$req = ReAnimator::WebSocket::Request->new;
+ok $req->parse("GET /demo HTTP/1.1\x0d\x0a");
 ok $req->parse("Upgrade: WebSocket\x0d\x0a");
 ok $req->parse("Connection: Upgrade\x0d\x0a");
 ok $req->parse("Host: example.com\x0d\x0a");

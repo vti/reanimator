@@ -13,8 +13,6 @@ sub new {
     my $self = {@_};
     bless $self, $class;
 
-    $self->{req} = ReAnimator::WebSocket::Request->new;
-
     return $self;
 }
 
@@ -22,25 +20,10 @@ sub secure { shift->{secure} }
 
 sub error { shift->{error} }
 
-sub is_done { shift->{req}->is_done }
+sub is_done { shift->req->is_done }
 
-sub res {
-    my $self = shift;
-
-    my $req = $self->{req};
-
-    my $res = ReAnimator::WebSocket::Response->new(
-        version       => $req->version,
-        host          => $req->host,
-        secure        => $self->secure,
-        resource_name => $req->resource_name,
-        origin        => $req->origin
-    );
-
-    $res->checksum($req->checksum) if $req->version > 75;
-
-    return $res;
-}
+sub req { shift->{req} ||= ReAnimator::WebSocket::Request->new }
+sub res { shift->{res} ||= ReAnimator::WebSocket::Response->new }
 
 sub parse {
     my $self  = shift;
@@ -48,13 +31,36 @@ sub parse {
 
     return 1 if $self->is_done;
 
-    my $rs = $self->{req}->parse($chunk);
+    my $req = $self->req;
+
+    my $rs = $req->parse($chunk);
     unless (defined $rs) {
-        $self->{error} = $self->{req}->error;
+        $self->{error} = $req->error;
         return;
     }
 
+    if ($req->is_done) {
+        $self->_prepare_response;
+    }
+
     return $rs;
+}
+
+sub _prepare_response {
+    my $self = shift;
+
+    my $req = $self->req;
+    my $res = $self->res;
+
+    $res->version($req->version);
+    $res->host($req->host);
+    $res->secure($self->secure);
+    $res->resource_name($req->resource_name);
+    $res->origin($req->origin);
+
+    $res->checksum($req->checksum) if $req->version > 75;
+
+    $self->{res} = $res;
 }
 
 1;

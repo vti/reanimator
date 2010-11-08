@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use ReAnimator::WebSocket::Location;
+use ReAnimator::WebSocket::Cookie::Response;
 
 sub new {
     my $class = shift;
@@ -13,6 +14,8 @@ sub new {
     bless $self, $class;
 
     $self->version(76);
+
+    $self->{cookies} ||= [];
 
     return $self;
 }
@@ -39,6 +42,14 @@ sub location {
     )->to_string;
 }
 
+sub cookies { @_ > 1 ? $_[0]->{cookies} = $_[1] : $_[0]->{cookies} }
+
+sub cookie {
+    my $self = shift;
+
+    push @{$self->{cookies}}, ReAnimator::WebSocket::Cookie::Response->new(@_);
+}
+
 sub to_string {
     my $self = shift;
 
@@ -49,12 +60,15 @@ sub to_string {
     $string .= "Upgrade: WebSocket\x0d\x0a";
     $string .= "Connection: Upgrade\x0d\x0a";
 
-    $string .= 'Sec-WebSocket-Origin: ' . $self->origin . "\x0d\x0a";
+    if ($self->version > 75) {
+        $string .= 'Sec-WebSocket-Origin: ' . $self->origin . "\x0d\x0a";
+        $string .= 'Sec-WebSocket-Location: ' . $self->location . "\x0d\x0a";
+    }
 
-    $string .= 'Sec-WebSocket-Location: ' . $self->location . "\x0d\x0a";
-
-    foreach my $name (keys %{$self->{fields}}) {
-        $string .= $name . ': ' . $self->{fields}->{$name} . "\x0d\x0a";
+    if (@{$self->cookies}) {
+        $string .= 'Set-Cookie: ';
+        $string .= join ',' => $_->to_string for @{$self->cookies};
+        $string .= "\x0d\x0a";
     }
 
     $string .= "\x0d\x0a";

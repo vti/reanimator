@@ -17,6 +17,8 @@ sub new {
     $self->{on_message}   ||= sub { };
     $self->{on_handshake} ||= sub { };
 
+    $self->{on_response} ||= sub { };
+
     return $self;
 }
 
@@ -26,6 +28,10 @@ sub on_message { @_ > 1 ? $_[0]->{on_message} = $_[1] : $_[0]->{on_message} }
 
 sub on_handshake {
     @_ > 1 ? $_[0]->{on_handshake} = $_[1] : $_[0]->{on_handshake};
+}
+
+sub on_response {
+    @_ > 1 ? $_[0]->{on_response} = $_[1] : $_[0]->{on_response};
 }
 
 sub read {
@@ -42,10 +48,10 @@ sub read {
         }
 
         if ($handshake->is_done) {
-            my $res = $handshake->res->to_string;
+            $self->on_response->($self);
 
             $self->write(
-                $res => sub {
+                $handshake->res->to_string => sub {
                     my $self = shift;
 
                     $self->on_handshake->($self);
