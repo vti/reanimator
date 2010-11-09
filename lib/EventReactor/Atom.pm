@@ -5,15 +5,19 @@ use warnings;
 
 use base 'EventReactor::Stateful';
 
+use constant DEBUG => $ENV{EVENT_REACTOR_DEBUG} ? 1 : 0;
+
 sub new {
     my $self = shift->SUPER::new(@_);
 
-    $self->{on_connect}    ||= sub { };
-    $self->{on_disconnect} ||= sub { };
+    $self->{on_disconnect} ||= sub {
+        warn 'Unhandled on_disconnect event'
+          if DEBUG;
+    };
 
-    $self->{on_read}  ||= sub { };
-    $self->{on_write} ||= sub { };
-    $self->{on_error} ||= sub { };
+    $self->{on_read}  ||= sub { warn 'Unhandled on_read event'  if DEBUG };
+    $self->{on_write} ||= sub { warn 'Unhandled on_write event' if DEBUG };
+    $self->{on_error} ||= sub { warn 'Unhandled on_error event' if DEBUG };
 
     $self->{chunks} = [];
     $self->{buffer} = '';
@@ -23,10 +27,11 @@ sub new {
     return $self;
 }
 
+sub is_accepting  {0}
+sub is_connecting {0}
+
 sub socket { @_ > 1 ? $_[0]->{socket} = $_[1] : $_[0]->{socket} }
 sub secure { @_ > 1 ? $_[0]->{secure} = $_[1] : $_[0]->{secure} }
-
-sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
 
 sub on_disconnect {
     @_ > 1 ? $_[0]->{on_disconnect} = $_[1] : $_[0]->{on_disconnect};
@@ -47,27 +52,6 @@ sub error {
 
     return $self;
 }
-
-sub accepting    { shift->state('accepting') }
-sub is_accepting { shift->is_state('accepting') }
-
-sub accepted    { shift->connected }
-sub is_accepted { shift->state('accepted') }
-
-sub connecting    { shift->state('connecting') }
-sub is_connecting { shift->is_state('connecting') }
-
-sub connected {
-    my $self = shift;
-
-    $self->state('connected');
-
-    $self->on_connect->($self);
-
-    return $self;
-}
-
-sub is_connected { shift->is_state('connected') }
 
 sub disconnected {
     my $self = shift;

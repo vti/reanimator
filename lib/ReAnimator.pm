@@ -37,7 +37,7 @@ sub _build_accepted_atom {
         socket     => $socket,
         secure     => $self->secure,
         socket     => $socket,
-        on_connect => sub {
+        on_accept => sub {
             $self->set_timeout(
                 $server => $self->handshake_timeout => sub {
                     return if $server->handshake->is_done;
@@ -48,7 +48,7 @@ sub _build_accepted_atom {
             );
         },
         on_handshake => sub {
-            $self->on_connect->($self, @_);
+            $self->on_accept->($self, @_);
         }
     );
 

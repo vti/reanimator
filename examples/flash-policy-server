@@ -12,7 +12,7 @@ use EventReactor;
 
 EventReactor->new(
     port       => 843,
-    on_connect => sub {
+    on_accept => sub {
         my ($self, $atom) = @_;
 
         $atom->write(<<'EOF' => sub { $self->drop($atom) });

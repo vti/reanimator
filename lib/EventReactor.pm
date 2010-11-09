@@ -69,16 +69,18 @@ sub new {
 
     $self->{max_clients} ||= 100;
 
-    $self->{address} ||= $ENV{REANIMATOR_ADDRESS} || '0.0.0.0';
-    $self->{port}    ||= $ENV{REANIMATOR_PORT}    || '3000';
+    $self->{address} ||= $ENV{EVENT_REACTOR_ADDRESS} || '0.0.0.0';
+    $self->{port}    ||= $ENV{EVENT_REACTOR_PORT}    || '3000';
 
     $self->{loop} = $self->_build_loop;
 
-    $self->{on_connect} ||= sub { };
-    $self->{on_error}   ||= sub { };
+    $self->{on_accept} ||= sub { warn 'Unhandled on_accept event' if DEBUG };
+    $self->{on_error}  ||= sub { warn 'Unhandled on_error event'  if DEBUG };
 
     $self->{atoms}  = {};
     $self->{timers} = {};
+
+    $self->{loop_timeout} ||= 0.25;
 
     return $self;
 }
@@ -89,8 +91,12 @@ sub secure    { @_ > 1 ? $_[0]->{secure}    = $_[1] : $_[0]->{secure} }
 sub key_file  { @_ > 1 ? $_[0]->{key_file}  = $_[1] : $_[0]->{key_file} }
 sub cert_file { @_ > 1 ? $_[0]->{cert_file} = $_[1] : $_[0]->{cert_file} }
 
-sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
-sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
+sub loop_timeout {
+    @_ > 1 ? $_[0]->{loop_timeout} = $_[1] : $_[0]->{loop_timeout};
+}
+
+sub on_accept { @_ > 1 ? $_[0]->{on_accept} = $_[1] : $_[0]->{on_accept} }
+sub on_error  { @_ > 1 ? $_[0]->{on_error}  = $_[1] : $_[0]->{on_error} }
 
 sub loop    { shift->{loop} }
 sub server  { shift->{server} }
@@ -136,7 +142,7 @@ sub listen {
 }
 
 sub connect {
-    my $self = shift;
+    my $self   = shift;
     my %params = @_;
 
     my $address = delete $params{address};
@@ -145,7 +151,7 @@ sub connect {
     Carp::croak q/address and port are required/ unless $address && $port;
 
     my $socket = $self->_build_client_socket(%params);
-    my $atom   = $self->_build_connected_atom($socket, @_);
+    my $atom = $self->_build_connected_atom($socket, @_);
     $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
     $self->atoms->{"$socket"} = $atom;
@@ -200,15 +206,6 @@ sub drop {
     return $self;
 }
 
-sub socket {
-    my $self = shift;
-    my $id   = shift;
-
-    $id = "$id" if ref $id;
-
-    return $self->sockets->{$id};
-}
-
 sub set_timeout { shift->set_interval(@_, {one_shot => 1}) }
 
 sub set_interval {
@@ -226,11 +223,21 @@ sub set_interval {
     return $self;
 }
 
+sub accepted_atoms {
+    grep { $_->isa('EventReactor::AcceptedAtom'); $_ } values %{shift->atoms};
+}
+
+sub connected_atoms {
+    grep { $_->isa('EventReactor::ConnectedAtom'); $_ } values %{shift->atoms};
+}
+
 sub _loop_until_i_die {
     my $self = shift;
 
+    my $timeout = $self->loop_timeout;
+
     while (1) {
-        $self->loop->tick(0.25);
+        $self->loop->tick($timeout);
 
         $self->_timers;
 
@@ -471,9 +478,9 @@ sub _build_client_socket {
     my %params = @_;
 
     my $socket = IO::Socket::INET->new(
-        Proto       => 'tcp',
-        Type        => SOCK_STREAM,
-        Blocking    => 0
+        Proto    => 'tcp',
+        Type     => SOCK_STREAM,
+        Blocking => 0
     );
 
     $socket->blocking(0);
@@ -486,9 +493,9 @@ sub _build_accepted_atom {
     my $socket = shift;
 
     return EventReactor::AcceptedAtom->new(
-        socket     => $socket,
-        on_connect => sub {
-            $self->on_connect->($self, shift);
+        socket    => $socket,
+        on_accept => sub {
+            $self->on_accept->($self, shift);
         }
     );
 }
