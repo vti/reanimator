@@ -31,19 +31,9 @@ sub tick {
     }
 }
 
-sub mask_rw {
-    my $self   = shift;
-    my $socket = shift;
-
-    $self->poll->mask($socket => POLLIN | POLLOUT);
-}
-
-sub mask_ro {
-    my $self   = shift;
-    my $socket = shift;
-
-    $self->poll->mask($socket => POLLIN);
-}
+sub mask_rw { $_[0]->poll->mask($_[1] => POLLIN | POLLOUT) }
+sub mask_ro { $_[0]->poll->mask($_[1] => POLLIN) }
+sub mask_wo { $_[0]->poll->mask($_[1] => POLLOUT) }
 
 sub readers { shift->poll->handles(POLLIN) }
 sub writers { shift->poll->handles(POLLOUT) }

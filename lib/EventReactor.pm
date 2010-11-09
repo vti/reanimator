@@ -11,6 +11,7 @@ use EventReactor::Timer;
 use Errno qw/EAGAIN EWOULDBLOCK EINPROGRESS/;
 use File::Spec;
 use IO::Socket;
+use Socket qw/IPPROTO_TCP TCP_NODELAY/;
 require Carp;
 
 use constant DEBUG => $ENV{EVENT_REACTOR_DEBUG} ? 1 : 0;
@@ -145,6 +146,7 @@ sub connect {
 
     my $socket = $self->_build_client_socket(%params);
     my $atom   = $self->_build_connected_atom($socket, @_);
+    $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
     $self->atoms->{"$socket"} = $atom;
 
@@ -228,7 +230,7 @@ sub _loop_until_i_die {
     my $self = shift;
 
     while (1) {
-        $self->loop->tick(0.1);
+        $self->loop->tick(0.25);
 
         $self->_timers;
 
@@ -269,6 +271,8 @@ sub _accept {
     if (!$atom) {
         my $socket = $self->server->accept;
         return unless $socket;
+
+        setsockopt($socket, IPPROTO_TCP, TCP_NODELAY, 1);
 
         my $id = "$socket";
 
@@ -363,9 +367,9 @@ sub _read {
 
     my $read = $atom->read($chunk);
 
-    unless (defined $read) {
-        $self->drop($atom);
-    }
+    return $self->drop($atom) unless defined $read;
+
+    return;
 }
 
 sub _write {
