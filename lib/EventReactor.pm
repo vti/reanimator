@@ -82,7 +82,13 @@ sub new {
 
     $self->{loop_timeout} ||= 0.25;
 
+    $self->{accept_timeout} ||= 5;
+
     return $self;
+}
+
+sub accept_timeout {
+    @_ > 1 ? $_[0]->{accept_timeout} = $_[1] : $_[0]->{accept_timeout};
 }
 
 sub build_slave { shift; EventReactor::Slave->new(@_) }
@@ -330,6 +336,13 @@ sub _accept {
 
         $self->atoms->{"$socket"} = $atom;
 
+        $self->set_timeout(
+            $atom => $self->accept_timeout => sub {
+                $atom->error('Accept timeout.');
+                $self->drop($atom);
+            }
+        );
+
         if ($socket->accept_SSL) {
             $self->loop->mask_rw($atom->socket);
             return $atom->accepted;
@@ -495,6 +508,8 @@ sub _build_accepted_atom {
     return EventReactor::AcceptedAtom->new(
         socket    => $socket,
         on_accept => sub {
+            delete $self->timers->{"$socket"};
+
             $self->on_accept->($self, shift);
         }
     );
