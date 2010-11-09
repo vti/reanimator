@@ -5,6 +5,7 @@ use warnings;
 
 use base 'ReAnimator::Stateful';
 
+use ReAnimator::WebSocket::Cookie::Request;
 use Digest::MD5 'md5';
 
 sub new {
@@ -15,10 +16,16 @@ sub new {
     $self->version(76);
     $self->state('request_line');
 
-    $self->{max_request_size} = 2048;
+    $self->{max_request_size} ||= 2048;
+
+    $self->{cookies} ||= [];
 
     return $self;
 }
+
+sub cookies { shift->{cookies} }
+
+sub fields { shift->{fields} }
 
 sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
 
@@ -79,7 +86,7 @@ sub parse {
         elsif ($line ne '') {
             my ($name, $value) = split ': ' => $line => 2;
 
-            $self->{fields}->{$name} = $value;
+            $self->fields->{$name} = $value;
         }
         else {
             $self->state('body');
@@ -101,7 +108,7 @@ sub parse {
             $self->version(75);
         }
 
-        return $self->done if $self->is_valid;
+        return $self->done if $self->finalize;
 
         $self->error('Not valid request');
         return;
@@ -165,13 +172,18 @@ sub key {
     return $number / $spaces;
 }
 
-sub is_valid {
+sub finalize {
     my $self = shift;
 
     return unless $self->upgrade    && $self->upgrade    eq 'WebSocket';
     return unless $self->connection && $self->connection eq 'Upgrade';
     return unless $self->origin;
     return unless $self->host;
+
+    my $cookie = ReAnimator::WebSocket::Cookie::Request->new;
+    if (my $cookies = $cookie->parse($self->fields->{Cookie})) {
+        $self->{cookies} = $cookies;
+    }
 
     return 1;
 }

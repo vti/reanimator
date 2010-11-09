@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 87;
+use Test::More tests => 98;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -76,6 +76,20 @@ ok $req->parse("Host: example.com\x0d\x0a");
 ok $req->parse("Origin: null\x0d\x0a");
 ok $req->parse("\x0d\x0a");
 is $req->state => 'done';
+
+$req = ReAnimator::WebSocket::Request->new;
+ok $req->parse("GET /demo HTTP/1.1\x0d\x0a");
+ok $req->parse("Upgrade: WebSocket\x0d\x0a");
+ok $req->parse("Connection: Upgrade\x0d\x0a");
+ok $req->parse("Host: example.com\x0d\x0a");
+ok $req->parse("Origin: null\x0d\x0a");
+ok $req->parse("Cookie: \$Version=1; foo=bar; \$Path=/\x0d\x0a");
+ok $req->parse("\x0d\x0a");
+is $req->state => 'done';
+
+is $req->cookies->[0]->version => 1;
+is $req->cookies->[0]->name    => 'foo';
+is $req->cookies->[0]->value   => 'bar';
 
 $req = ReAnimator::WebSocket::Request->new;
 is $req->state => 'request_line';

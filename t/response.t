@@ -52,7 +52,7 @@ $string = '';
 $string .= "HTTP/1.1 101 WebSocket Protocol Handshake\x0d\x0a";
 $string .= "Upgrade: WebSocket\x0d\x0a";
 $string .= "Connection: Upgrade\x0d\x0a";
-$string .= "Set-Cookie: foo=bar; Path=\"/\"; Version=1\x0d\x0a";
+$string .= "Set-Cookie: foo=bar; Path=/; Version=1\x0d\x0a";
 $string .= "\x0d\x0a";
 
 is $res->to_string => $string;
