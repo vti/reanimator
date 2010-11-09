@@ -459,7 +459,7 @@ sub _build_server_socket {
         Listen       => SOMAXCONN,
         ReuseAddr    => 1,
         Blocking     => 0
-    );
+    ) or Carp::croak qq/Can't create a listen socket: $!/;
 
     $socket->blocking(0);
 
