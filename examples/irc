@@ -1,24 +1,25 @@
 #!/usr/bin/env perl
 
-# Based on http://github.com/xantus/mojo-websocket-examples.git
+# Inspired by http://github.com/xantus/mojo-websocket-examples.git
 
 use strict;
 use warnings;
 
 use FindBin;
-use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../lib";
 
 use ReAnimator;
 
-my $server = ReAnimator->new;
-
-my $irc_server  = 'irc.perl.org';
+#my $irc_server  = 'irc.perl.org';
+my $irc_server  = 'localhost';
 my $irc_port    = 6667;
 my $irc_channel = 'ru.pm';
 
-$server->on_connect(
-    sub {
+ReAnimator->new(
+    on_accept => sub {
         my ($self, $client) = @_;
+
+        $client->send_message('Connecting to ' . $irc_server . '...');
 
         my $slave = $self->connect(
             address    => $irc_server,
@@ -29,9 +30,9 @@ $server->on_connect(
                 $self->write(_irc_nick_command());
                 $self->write(_irc_join_command($irc_channel));
             },
-            on_disconnect => sub { $server->drop($client) },
+            on_disconnect => sub { $self->drop($client) },
             on_read       => sub { shift; $client->send_message(@_) },
-            on_error      => sub { $server->drop($client) }
+            on_error      => sub { $self->drop($client) }
         );
 
         $client->on_message(
@@ -54,12 +55,8 @@ $server->on_connect(
                 }
             }
         );
-
-        $client->send_message('Connecting to ' . $irc_server . '...');
     }
-);
-
-$server->listen;
+)->listen;
 
 sub _irc_nick_command {
     my $rand = 'ReAnimator' . int(rand(10000));

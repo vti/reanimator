@@ -4,26 +4,22 @@ use strict;
 use warnings;
 
 use FindBin;
-use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../lib";
 
 use ReAnimator;
 
-my $server = ReAnimator->new;
-
-$server->on_connect(
-    sub {
+ReAnimator->new(
+    on_accept => sub {
         my ($self, $client) = @_;
 
         $client->on_message(
             sub {
                 my ($client, $message) = @_;
 
-                $server->send_broadcast_message($message);
+                $self->send_broadcast_message($message);
             }
         );
 
         $client->send_message('Welcome!');
     }
-);
-
-$server->listen;
+)->listen;
