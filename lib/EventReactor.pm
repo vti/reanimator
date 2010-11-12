@@ -160,7 +160,7 @@ sub connect {
     my $atom = $self->_build_connected_atom($socket, @_);
     $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
-    my $fd = fileno $socket;
+    my $fd = $socket->fileno;
 
     $self->atoms->{$fd} = $atom;
 
@@ -195,7 +195,7 @@ sub drop {
 
     $self->loop->remove($socket);
 
-    my $fd = fileno $socket;
+    my $fd = $socket->fileno;
 
     $socket->close;
 
@@ -221,7 +221,7 @@ sub set_interval {
 
     my $args     = ref $_[-1] eq 'HASH' ? pop : {};
     my $cb       = pop;
-    my $fd       = @_ == 2 ? fileno(shift->socket) : fileno($self->server);
+    my $fd       = @_ == 2 ? shift->socket->fileno : $self->server->fileno;
     my $interval = shift;
 
     my $timer = $self->_build_timer(interval => $interval, cb => $cb, %$args);
@@ -298,7 +298,7 @@ sub _accept {
         $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
         unless ($self->secure) {
-            my $fd = fileno $socket;
+            my $fd = $socket->fileno;
 
             $self->atoms->{$fd} = $atom;
 
@@ -339,7 +339,7 @@ sub _accept {
 
         $socket->blocking(0);
 
-        my $fd = fileno $socket;
+        my $fd = $socket->fileno;
         $self->atoms->{$fd} = $atom;
 
         $self->set_timeout(
@@ -373,7 +373,7 @@ sub _read {
     my $self = shift;
     my $fd   = shift;
 
-    return $self->_accept if $fd == fileno $self->server;
+    return $self->_accept if $fd == $self->server->fileno;
 
     my $atom = $self->atoms->{$fd};
     return unless $atom;
@@ -402,7 +402,7 @@ sub _write {
     my $self = shift;
     my $fd   = shift;
 
-    return $self->_accept if $fd == fileno $self->server;
+    return $self->_accept if $fd == $self->server->fileno;
 
     my $atom = $self->atoms->{$fd};
     return unless $atom;
@@ -465,7 +465,7 @@ sub _add_timer {
     my $timer = shift;
 
     die 'Unknown timer id'
-      unless fileno($self->server) == $fd || exists $self->atoms->{$fd};
+      unless $self->server->fileno == $fd || exists $self->atoms->{$fd};
 
     $self->timers->{$fd} = $timer;
 }
@@ -511,7 +511,7 @@ sub _build_accepted_atom {
     my $self   = shift;
     my $socket = shift;
 
-    my $fd = fileno $socket;
+    my $fd = $socket->fileno;
 
     return EventReactor::AcceptedAtom->new(
         socket    => $socket,
