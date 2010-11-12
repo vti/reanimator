@@ -33,6 +33,6 @@ sub connected {
     return $self;
 }
 
-sub is_connected { shift->socket->connected }
+sub is_connected { shift->handle->connected }
 
 1;

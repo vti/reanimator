@@ -158,11 +158,10 @@ sub connect {
 
     my $socket = $self->_build_client_socket(%params);
     my $atom = $self->_build_connected_atom($socket, @_);
-    $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
     my $fd = $socket->fileno;
 
-    $self->atoms->{$fd} = $atom;
+    $self->add_atom($fd => $atom);
 
     $self->loop->mask_rw($socket);
 
@@ -187,11 +186,20 @@ sub connect {
     return $atom;
 }
 
+sub add_atom {
+    my $self = shift;
+    my ($fd, $atom) = @_;
+
+    $atom->on_write(sub { $self->loop->mask_rw($atom->handle) });
+
+    $self->atoms->{$fd} = $atom;
+}
+
 sub drop {
     my $self = shift;
     my $atom = shift;
 
-    my $socket = $atom->socket;
+    my $socket = $atom->handle;
 
     $self->loop->remove($socket);
 
@@ -295,14 +303,11 @@ sub _accept {
         print "New connection\n" if DEBUG;
 
         $atom = $self->_build_accepted_atom($socket);
-        $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
         unless ($self->secure) {
-            my $fd = $socket->fileno;
+            $self->add_atom($socket->fileno => $atom);
 
-            $self->atoms->{$fd} = $atom;
-
-            $self->loop->mask_rw($atom->socket);
+            $self->loop->mask_rw($atom->handle);
             return $atom->accepted;
         }
 
@@ -339,8 +344,7 @@ sub _accept {
 
         $socket->blocking(0);
 
-        my $fd = $socket->fileno;
-        $self->atoms->{$fd} = $atom;
+        $self->add_atom($socket->fileno => $atom);
 
         $self->set_timeout(
             $atom => $self->accept_timeout => sub {
@@ -350,7 +354,7 @@ sub _accept {
         );
 
         if ($socket->accept_SSL) {
-            $self->loop->mask_rw($atom->socket);
+            $self->loop->mask_rw($atom->handle);
             return $atom->accepted;
         }
         elsif ($! && $! == EAGAIN) {
@@ -359,7 +363,7 @@ sub _accept {
         }
     }
     else {
-        my $socket = $atom->socket;
+        my $socket = $atom->handle;
 
         $atom->{socket} = $socket;
         return $atom->accepted if $socket->accept_SSL;
@@ -380,7 +384,7 @@ sub _read {
 
     return $self->_accept($atom) if $atom->is_accepting;
 
-    my $rb = $atom->socket->sysread(my $chunk, 1024 * 4096);
+    my $rb = $atom->handle->sysread(my $chunk, 1024 * 4096);
 
     unless ($rb) {
         return if $! && $! == EAGAIN || $! == EWOULDBLOCK;
@@ -418,11 +422,11 @@ sub _write {
         $atom->connected;
     }
 
-    return $self->loop->mask_ro($atom->socket) unless $atom->is_writing;
+    return $self->loop->mask_ro($atom->handle) unless $atom->is_writing;
 
     warn '> ' . $atom->buffer if DEBUG;
 
-    my $br = $atom->socket->syswrite($atom->buffer);
+    my $br = $atom->handle->syswrite($atom->buffer);
 
     if (not defined $br) {
         return if $! == EAGAIN || $! == EWOULDBLOCK;
@@ -435,7 +439,7 @@ sub _write {
 
     $atom->bytes_written($br);
 
-    $self->loop->mask_ro($atom->socket) unless $atom->is_writing;
+    $self->loop->mask_ro($atom->handle) unless $atom->is_writing;
 }
 
 sub _error {
@@ -514,7 +518,7 @@ sub _build_accepted_atom {
     my $fd = $socket->fileno;
 
     return EventReactor::AcceptedAtom->new(
-        socket    => $socket,
+        handle    => $socket,
         on_accept => sub {
             delete $self->timers->{$fd};
 

@@ -30,7 +30,7 @@ sub new {
 sub is_accepting  {0}
 sub is_connecting {0}
 
-sub socket { @_ > 1 ? $_[0]->{socket} = $_[1] : $_[0]->{socket} }
+sub handle { @_ > 1 ? $_[0]->{handle} = $_[1] : $_[0]->{handle} }
 sub secure { @_ > 1 ? $_[0]->{secure} = $_[1] : $_[0]->{secure} }
 
 sub on_disconnect {
