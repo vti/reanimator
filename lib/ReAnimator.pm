@@ -36,7 +36,7 @@ sub _build_accepted_atom {
     $server = ReAnimator::Server->new(
         socket     => $socket,
         secure     => $self->secure,
-        socket     => $socket,
+        handle     => $socket,
         on_accept => sub {
             $self->set_timeout(
                 $server => $self->handshake_timeout => sub {
