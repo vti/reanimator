@@ -83,6 +83,8 @@ sub new {
 
     $self->{accept_timeout} ||= 5;
 
+    $self->{secure} ||= 0;
+
     return $self;
 }
 
@@ -91,8 +93,6 @@ sub continue { @_ > 1 ? $_[0]->{continue} = $_[1] : $_[0]->{continue} }
 sub accept_timeout {
     @_ > 1 ? $_[0]->{accept_timeout} = $_[1] : $_[0]->{accept_timeout};
 }
-
-sub build_slave { shift; EventReactor::Slave->new(@_) }
 
 sub secure    { @_ > 1 ? $_[0]->{secure}    = $_[1] : $_[0]->{secure} }
 sub key_file  { @_ > 1 ? $_[0]->{key_file}  = $_[1] : $_[0]->{key_file} }
@@ -125,7 +125,7 @@ sub listen {
         Carp::croak q/IO::Socket::SSL is required/ unless IO_SOCKET_SSL;
 
         Carp::croak
-          q/Either both key_file AND cert_file must be specified or NEIGHER of them, so default can be used/
+          q/Either both key_file AND cert_file must be specified or NEITHER of them, so default can be used/
           unless ($self->key_file && $self->cert_file)
           || (!$self->key_file && !$self->cert_file);
     }
@@ -159,23 +159,25 @@ sub connect {
     Carp::croak q/address and port are required/ unless $address && $port;
 
     my $socket = $self->_build_client_socket(%params);
-    my $atom   = $self->_build_connected_atom($socket);
 
+    my %args;
     if (!$self->server) {
-        $atom->on_connect(
-            sub {
+        %args = (
+            on_connect => sub {
                 print "Connected\n" if DEBUG;
 
-                #delete $self->timers->{$fd};
-
                 $self->on_connect->($self, shift);
-            }
+            },
+            on_error      => sub { $self->stop },
+            on_disconnect => sub { $self->stop }
         );
-
-        $atom->on_error(sub { $self->stop });
-
-        $atom->on_disconnect(sub { $self->stop });
     }
+
+    my $atom = $self->_build_connected_atom(
+        handle => $socket,
+        secure => $self->secure,
+        %args
+    );
 
     $self->add_atom($atom);
 
@@ -332,12 +334,18 @@ sub _accept {
 
         print "New connection\n" if DEBUG;
 
-        $atom = $self->_build_accepted_atom($socket);
+        $atom = $self->_build_accepted_atom(
+            secure    => $self->secure,
+            handle    => $socket,
+            on_accept => sub {
+                $self->on_accept->($self, shift);
+            }
+        );
 
         unless ($self->secure) {
             $self->add_atom($atom);
 
-            return $atom->accepted;
+            return $self->_accept_atom($atom);
         }
 
         unless ($self->key_file && $self->cert_file) {
@@ -384,7 +392,7 @@ sub _accept {
 
         if ($socket->accept_SSL) {
             $self->loop->mask_rw($atom->handle);
-            return $atom->accepted;
+            return $self->_accept_atom($atom);
         }
         elsif ($! && $! == EAGAIN) {
             $self->loop->mask_ro($socket);
@@ -395,11 +403,20 @@ sub _accept {
         my $socket = $atom->handle;
 
         $atom->{socket} = $socket;
-        return $atom->accepted if $socket->accept_SSL;
+        return $self->_accept_atom($atom) if $socket->accept_SSL;
         return if $! && $! != EAGAIN;
     }
 
     $self->drop($atom);
+}
+
+sub _accept_atom {
+    my $self = shift;
+    my $atom = shift;
+
+    delete $self->timers->{$atom->handle->fileno};
+
+    return $atom->accepted;
 }
 
 sub _read {
@@ -541,26 +558,15 @@ sub _build_client_socket {
 }
 
 sub _build_accepted_atom {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
 
-    my $fd = $socket->fileno;
-
-    return EventReactor::AcceptedAtom->new(
-        handle    => $socket,
-        on_accept => sub {
-            delete $self->timers->{$fd};
-
-            $self->on_accept->($self, shift);
-        }
-    );
+    return EventReactor::AcceptedAtom->new(@_);
 }
 
 sub _build_connected_atom {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
 
-    return EventReactor::ConnectedAtom->new(handle => $socket, @_);
+    return EventReactor::ConnectedAtom->new(@_);
 }
 
 1;

@@ -29,14 +29,11 @@ sub send_broadcast_message {
 }
 
 sub _build_accepted_atom {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
 
     my $server;
     $server = ReAnimator::Server->new(
-        socket     => $socket,
-        secure     => $self->secure,
-        handle     => $socket,
+        @_,
         on_accept => sub {
             $self->set_timeout(
                 $server => $self->handshake_timeout => sub {
