@@ -69,13 +69,12 @@ sub new {
 
     $self->{max_clients} ||= 100;
 
-    $self->{address} ||= $ENV{EVENT_REACTOR_ADDRESS} || '0.0.0.0';
-    $self->{port}    ||= $ENV{EVENT_REACTOR_PORT}    || '3000';
-
     $self->{loop} = $self->_build_loop;
 
     $self->{on_accept} ||= sub { warn 'Unhandled on_accept event' if DEBUG };
-    $self->{on_error}  ||= sub { warn 'Unhandled on_error event'  if DEBUG };
+    $self->{on_connect}
+      ||= sub { warn 'Unhandled on_connect event' if DEBUG };
+    $self->{on_error} ||= sub { warn 'Unhandled on_error event' if DEBUG };
 
     $self->{atoms}  = {};
     $self->{timers} = {};
@@ -86,6 +85,8 @@ sub new {
 
     return $self;
 }
+
+sub continue { @_ > 1 ? $_[0]->{continue} = $_[1] : $_[0]->{continue} }
 
 sub accept_timeout {
     @_ > 1 ? $_[0]->{accept_timeout} = $_[1] : $_[0]->{accept_timeout};
@@ -101,8 +102,9 @@ sub loop_timeout {
     @_ > 1 ? $_[0]->{loop_timeout} = $_[1] : $_[0]->{loop_timeout};
 }
 
-sub on_accept { @_ > 1 ? $_[0]->{on_accept} = $_[1] : $_[0]->{on_accept} }
-sub on_error  { @_ > 1 ? $_[0]->{on_error}  = $_[1] : $_[0]->{on_error} }
+sub on_accept  { @_ > 1 ? $_[0]->{on_accept}  = $_[1] : $_[0]->{on_accept} }
+sub on_connect { @_ > 1 ? $_[0]->{on_connect} = $_[1] : $_[0]->{on_connect} }
+sub on_error   { @_ > 1 ? $_[0]->{on_error}   = $_[1] : $_[0]->{on_error} }
 
 sub loop    { shift->{loop} }
 sub server  { shift->{server} }
@@ -128,8 +130,8 @@ sub listen {
           || (!$self->key_file && !$self->cert_file);
     }
 
-    my $address = $self->address;
-    my $port    = $self->port;
+    my $address = $self->address || $ENV{EVENT_REACTOR_ADDRESS} || '0.0.0.0';
+    my $port    = $self->port    || $ENV{EVENT_REACTOR_PORT}    || '3000';
 
     my $socket = $self->_build_server_socket(
         address => $address,
@@ -144,20 +146,36 @@ sub listen {
 
     print "Listening on $address:$port\n" if DEBUG;
 
-    $self->_loop_until_i_die;
+    $self->start;
 }
 
 sub connect {
     my $self   = shift;
     my %params = @_;
 
-    my $address = delete $params{address};
-    my $port    = delete $params{port};
+    my $address = delete $params{address} || $self->address;
+    my $port    = delete $params{port}    || $self->port;
 
     Carp::croak q/address and port are required/ unless $address && $port;
 
     my $socket = $self->_build_client_socket(%params);
-    my $atom = $self->_build_connected_atom($socket, @_);
+    my $atom   = $self->_build_connected_atom($socket);
+
+    if (!$self->server) {
+        $atom->on_connect(
+            sub {
+                print "Connected\n" if DEBUG;
+
+                #delete $self->timers->{$fd};
+
+                $self->on_connect->($self, shift);
+            }
+        );
+
+        $atom->on_error(sub { $self->stop });
+
+        $atom->on_disconnect(sub { $self->stop });
+    }
 
     $self->add_atom($atom);
 
@@ -179,8 +197,20 @@ sub connect {
         $self->drop($atom);
     }
 
+    $self->start unless $self->server;
+
     return $atom;
 }
+
+sub start {
+    my $self = shift;
+
+    $self->continue(1);
+
+    $self->_loop_until_i_die;
+}
+
+sub stop { shift->continue(0) }
 
 sub add_atom {
     my $self = shift;
@@ -203,8 +233,6 @@ sub drop {
 
     my $fd = $socket->fileno;
 
-    $socket->close;
-
     if (my $e = $atom->error) {
         print "Connection error: $e\n" if DEBUG;
     }
@@ -217,6 +245,8 @@ sub drop {
     delete $self->atoms->{$fd};
     delete $self->timers->{$fd};
 
+    $socket->close;
+
     return $self;
 }
 
@@ -227,7 +257,7 @@ sub set_interval {
 
     my $args     = ref $_[-1] eq 'HASH' ? pop : {};
     my $cb       = pop;
-    my $fd       = @_ == 2 ? shift->socket->fileno : $self->server->fileno;
+    my $fd       = @_ == 2 ? shift->handle->fileno : $self->server->fileno;
     my $interval = shift;
 
     my $timer = $self->_build_timer(interval => $interval, cb => $cb, %$args);
@@ -271,6 +301,8 @@ sub _loop_until_i_die {
         for ($self->loop->hups) {
             $self->_hup($_);
         }
+
+        last unless $self->continue;
     }
 }
 
@@ -374,7 +406,7 @@ sub _read {
     my $self = shift;
     my $fd   = shift;
 
-    return $self->_accept if $fd == $self->server->fileno;
+    return $self->_accept if $self->server && $fd == $self->server->fileno;
 
     my $atom = $self->atoms->{$fd};
     return unless $atom;
@@ -403,7 +435,7 @@ sub _write {
     my $self = shift;
     my $fd   = shift;
 
-    return $self->_accept if $fd == $self->server->fileno;
+    return $self->_accept if $self->server && $fd == $self->server->fileno;
 
     my $atom = $self->atoms->{$fd};
     return unless $atom;
@@ -528,7 +560,7 @@ sub _build_connected_atom {
     my $self   = shift;
     my $socket = shift;
 
-    return EventReactor::ConnectedAtom->new(socket => $socket, @_);
+    return EventReactor::ConnectedAtom->new(handle => $socket, @_);
 }
 
 1;
