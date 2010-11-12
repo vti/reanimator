@@ -410,7 +410,7 @@ sub _write {
     return $self->_accept($atom) if $atom->is_accepting;
 
     if ($atom->is_connecting) {
-        unless ($atom->socket->connected) {
+        unless ($atom->is_connected) {
             $self->error($!) if $!;
             return $self->drop($atom);
         }
