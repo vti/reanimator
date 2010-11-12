@@ -193,9 +193,9 @@ sub drop {
 
     my $socket = $atom->socket;
 
-    my $fd = fileno $socket;
-
     $self->loop->remove($socket);
+
+    my $fd = fileno $socket;
 
     $socket->close;
 
