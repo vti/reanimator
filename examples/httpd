@@ -13,7 +13,7 @@ use EventReactor;
 my $buffer = {};
 
 my $reactor = EventReactor->new(
-    on_connect => sub {
+    on_accept => sub {
         my ($self, $atom) = @_;
 
         $atom->on_read(

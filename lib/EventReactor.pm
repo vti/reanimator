@@ -285,6 +285,8 @@ sub _accept {
         my $socket = $self->server->accept;
         return unless $socket;
 
+        $socket->blocking(0);
+
         setsockopt($socket, IPPROTO_TCP, TCP_NODELAY, 1);
 
         my $id = "$socket";
