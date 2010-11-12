@@ -159,9 +159,7 @@ sub connect {
     my $socket = $self->_build_client_socket(%params);
     my $atom = $self->_build_connected_atom($socket, @_);
 
-    my $fd = $socket->fileno;
-
-    $self->add_atom($fd => $atom);
+    $self->add_atom($atom);
 
     $self->loop->mask_rw($socket);
 
@@ -188,11 +186,11 @@ sub connect {
 
 sub add_atom {
     my $self = shift;
-    my ($fd, $atom) = @_;
+    my ($atom) = @_;
 
     $atom->on_write(sub { $self->loop->mask_rw($atom->handle) });
 
-    $self->atoms->{$fd} = $atom;
+    $self->atoms->{$atom->handle->fileno} = $atom;
 }
 
 sub drop {
@@ -305,7 +303,7 @@ sub _accept {
         $atom = $self->_build_accepted_atom($socket);
 
         unless ($self->secure) {
-            $self->add_atom($socket->fileno => $atom);
+            $self->add_atom($atom);
 
             $self->loop->mask_rw($atom->handle);
             return $atom->accepted;
@@ -344,7 +342,7 @@ sub _accept {
 
         $socket->blocking(0);
 
-        $self->add_atom($socket->fileno => $atom);
+        $self->add_atom($atom);
 
         $self->set_timeout(
             $atom => $self->accept_timeout => sub {
