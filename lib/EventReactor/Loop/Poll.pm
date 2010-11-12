@@ -35,10 +35,21 @@ sub mask_rw { $_[0]->poll->mask($_[1] => POLLIN | POLLOUT) }
 sub mask_ro { $_[0]->poll->mask($_[1] => POLLIN) }
 sub mask_wo { $_[0]->poll->mask($_[1] => POLLOUT) }
 
-sub readers { shift->poll->handles(POLLIN) }
-sub writers { shift->poll->handles(POLLOUT) }
-sub errors  { shift->poll->handles(POLLERR) }
-sub hups    { shift->poll->handles(POLLHUP) }
+sub readers {
+    map {fileno $_} shift->poll->handles(POLLIN);
+}
+
+sub writers {
+    map {fileno $_} shift->poll->handles(POLLOUT);
+}
+
+sub errors {
+    map {fileno $_} shift->poll->handles(POLLERR);
+}
+
+sub hups {
+    map {fileno $_} shift->poll->handles(POLLHUP);
+}
 
 sub remove { shift->poll->remove(@_) }
 

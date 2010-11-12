@@ -10,8 +10,7 @@ use lib "$FindBin::Bin/../lib";
 
 use ReAnimator;
 
-#my $irc_server  = 'irc.perl.org';
-my $irc_server  = 'localhost';
+my $irc_server  = 'irc.perl.org';
 my $irc_port    = 6667;
 my $irc_channel = 'ru.pm';
 

@@ -160,7 +160,9 @@ sub connect {
     my $atom = $self->_build_connected_atom($socket, @_);
     $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
-    $self->atoms->{"$socket"} = $atom;
+    my $fd = fileno $socket;
+
+    $self->atoms->{$fd} = $atom;
 
     $self->loop->mask_rw($socket);
 
@@ -191,6 +193,8 @@ sub drop {
 
     my $socket = $atom->socket;
 
+    my $fd = fileno $socket;
+
     $self->loop->remove($socket);
 
     $socket->close;
@@ -204,10 +208,8 @@ sub drop {
         $atom->disconnected;
     }
 
-    my $id = "$socket";
-
-    delete $self->atoms->{$id};
-    delete $self->timers->{$id};
+    delete $self->atoms->{$fd};
+    delete $self->timers->{$fd};
 
     return $self;
 }
@@ -219,12 +221,12 @@ sub set_interval {
 
     my $args     = ref $_[-1] eq 'HASH' ? pop : {};
     my $cb       = pop;
-    my $id       = @_ == 2 ? shift->socket . '' : "$self";
+    my $fd       = @_ == 2 ? fileno(shift->socket) : fileno($self->server);
     my $interval = shift;
 
     my $timer = $self->_build_timer(interval => $interval, cb => $cb, %$args);
 
-    $self->_add_timer($id => $timer);
+    $self->_add_timer($fd => $timer);
 
     return $self;
 }
@@ -234,7 +236,8 @@ sub accepted_atoms {
 }
 
 sub connected_atoms {
-    grep { $_->isa('EventReactor::ConnectedAtom'); $_ } values %{shift->atoms};
+    grep { $_->isa('EventReactor::ConnectedAtom'); $_ }
+      values %{shift->atoms};
 }
 
 sub _loop_until_i_die {
@@ -289,15 +292,15 @@ sub _accept {
 
         setsockopt($socket, IPPROTO_TCP, TCP_NODELAY, 1);
 
-        my $id = "$socket";
-
         print "New connection\n" if DEBUG;
 
         $atom = $self->_build_accepted_atom($socket);
         $atom->on_write(sub { $self->loop->mask_rw($atom->socket) });
 
         unless ($self->secure) {
-            $self->atoms->{"$socket"} = $atom;
+            my $fd = fileno $socket;
+
+            $self->atoms->{$fd} = $atom;
 
             $self->loop->mask_rw($atom->socket);
             return $atom->accepted;
@@ -336,7 +339,8 @@ sub _accept {
 
         $socket->blocking(0);
 
-        $self->atoms->{"$socket"} = $atom;
+        my $fd = fileno $socket;
+        $self->atoms->{$fd} = $atom;
 
         $self->set_timeout(
             $atom => $self->accept_timeout => sub {
@@ -366,12 +370,12 @@ sub _accept {
 }
 
 sub _read {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
+    my $fd   = shift;
 
-    return $self->_accept if $socket == $self->server;
+    return $self->_accept if $fd == fileno $self->server;
 
-    my $atom = $self->atoms->{"$socket"};
+    my $atom = $self->atoms->{$fd};
     return unless $atom;
 
     return $self->_accept($atom) if $atom->is_accepting;
@@ -395,18 +399,18 @@ sub _read {
 }
 
 sub _write {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
+    my $fd   = shift;
 
-    return $self->_accept if $socket == $self->server;
+    return $self->_accept if $fd == fileno $self->server;
 
-    my $atom = $self->atoms->{"$socket"};
+    my $atom = $self->atoms->{$fd};
     return unless $atom;
 
     return $self->_accept($atom) if $atom->is_accepting;
 
     if ($atom->is_connecting) {
-        unless ($socket->connected) {
+        unless ($atom->socket->connected) {
             $self->error($!) if $!;
             return $self->drop($atom);
         }
@@ -435,10 +439,10 @@ sub _write {
 }
 
 sub _error {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
+    my $fd   = shift;
 
-    my $atom = $self->atoms->{"$socket"};
+    my $atom = $self->atoms->{$fd};
     return unless $atom;
 
     $atom->error($!);
@@ -446,10 +450,10 @@ sub _error {
 }
 
 sub _hup {
-    my $self   = shift;
-    my $socket = shift;
+    my $self = shift;
+    my $fd   = shift;
 
-    my $atom = $self->atoms->{"$socket"};
+    my $atom = $self->atoms->{$fd};
     return unless $atom;
 
     return $self->drop($atom);
@@ -457,13 +461,13 @@ sub _hup {
 
 sub _add_timer {
     my $self  = shift;
-    my $id    = shift;
+    my $fd    = shift;
     my $timer = shift;
 
     die 'Unknown timer id'
-      unless $self->server eq $id || exists $self->atoms->{$id};
+      unless fileno($self->server) == $fd || exists $self->atoms->{$fd};
 
-    $self->timers->{$id} = $timer;
+    $self->timers->{$fd} = $timer;
 }
 
 sub _build_loop { EventReactor::Loop->build }
@@ -507,10 +511,12 @@ sub _build_accepted_atom {
     my $self   = shift;
     my $socket = shift;
 
+    my $fd = fileno $socket;
+
     return EventReactor::AcceptedAtom->new(
         socket    => $socket,
         on_accept => sub {
-            delete $self->timers->{"$socket"};
+            delete $self->timers->{$fd};
 
             $self->on_accept->($self, shift);
         }
