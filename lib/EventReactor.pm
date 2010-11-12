@@ -161,8 +161,6 @@ sub connect {
 
     $self->add_atom($atom);
 
-    $self->loop->mask_rw($socket);
-
     my $ip = gethostbyname($address);
     my $addr = sockaddr_in($port, $ip);
 
@@ -191,6 +189,8 @@ sub add_atom {
     $atom->on_write(sub { $self->loop->mask_rw($atom->handle) });
 
     $self->atoms->{$atom->handle->fileno} = $atom;
+
+    $self->loop->mask_rw($atom->handle);
 }
 
 sub drop {
@@ -305,7 +305,6 @@ sub _accept {
         unless ($self->secure) {
             $self->add_atom($atom);
 
-            $self->loop->mask_rw($atom->handle);
             return $atom->accepted;
         }
 
