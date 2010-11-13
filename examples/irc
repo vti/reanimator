@@ -56,7 +56,7 @@ ReAnimator->new(
             }
         );
     }
-)->listen;
+)->listen->start;
 
 sub _irc_nick_command {
     my $rand = 'ReAnimator' . int(rand(10000));

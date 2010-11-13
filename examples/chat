@@ -22,4 +22,4 @@ ReAnimator->new(
 
         $client->send_message('Welcome!');
     }
-)->listen;
+)->listen->start;

@@ -146,7 +146,7 @@ sub listen {
 
     print "Listening on $address:$port\n" if DEBUG;
 
-    $self->start;
+    return $self;
 }
 
 sub connect {
@@ -201,8 +201,6 @@ sub connect {
         $self->drop($atom);
         return;
     }
-
-    $self->start unless $self->server;
 
     return $atom;
 }

@@ -12,7 +12,7 @@ use EventReactor;
 
 my $buffer = {};
 
-my $reactor = EventReactor->new(
+EventReactor->new(
     on_accept => sub {
         my ($self, $atom) = @_;
 
@@ -31,8 +31,6 @@ my $reactor = EventReactor->new(
             }
         );
     }
-);
-
-$reactor->listen;
+)->listen->start;
 
 1;

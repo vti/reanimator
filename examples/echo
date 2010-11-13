@@ -20,4 +20,4 @@ ReAnimator->new(
             }
         );
     }
-)->listen;
+)->listen->start;

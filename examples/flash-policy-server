@@ -24,6 +24,6 @@ EventReactor->new(
 </cross-domain-policy>
 EOF
     }
-)->listen;
+)->listen->start;
 
 1;
