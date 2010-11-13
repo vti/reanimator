@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 98;
+use Test::More tests => 102;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -134,3 +134,35 @@ ok $req->parse("Connection: Upgrade\x0d\x0a");
 ok $req->parse("Host: example.com\x0d\x0a");
 ok not defined $req->parse("\x0d\x0a");
 is $req->state => 'error';
+
+$req = ReAnimator::WebSocket::Request->new(
+    resource_name => '/demo',
+    fields        => {
+        'Host'   => 'example.com',
+        'Origin' => 'http://example.com',
+    },
+    key1      => '18x 6]8vM;54 *(5:  {   U1]8  z [  8',
+    key2      => '1_ tx7X d  <  nw  334J702) 7]o}` 0',
+    challenge => 'fQJ,fN/4F4!~K~MH'
+);
+is $req->to_string => "GET /demo HTTP/1.1\x0d\x0a"
+  . "Upgrade: WebSocket\x0d\x0a"
+  . "Connection: Upgrade\x0d\x0a"
+  . "Host: example.com\x0d\x0a"
+  . "Origin: http://example.com\x0d\x0a"
+  . "Sec-WebSocket-Key1: 18x 6]8vM;54 *(5:  {   U1]8  z [  8\x0d\x0a"
+  . "Sec-WebSocket-Key2: 1_ tx7X d  <  nw  334J702) 7]o}` 0\x0d\x0a"
+  . "\x0d\x0a"
+  . "fQJ,fN/4F4!~K~MH";
+
+$req = ReAnimator::WebSocket::Request->new(
+    resource_name => '/demo',
+    fields        => {
+        'Host'   => 'example.com',
+        'Origin' => 'http://example.com',
+    }
+);
+$req->to_string;
+ok $req->key1;
+ok $req->key2;
+ok $req->challenge;

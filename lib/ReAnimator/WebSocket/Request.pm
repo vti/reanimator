@@ -3,7 +3,7 @@ package ReAnimator::WebSocket::Request;
 use strict;
 use warnings;
 
-use base 'ReAnimator::Stateful';
+use base 'ReAnimator::WebSocket::Message';
 
 use ReAnimator::WebSocket::Cookie::Request;
 use Digest::MD5 'md5';
@@ -11,9 +11,6 @@ use Digest::MD5 'md5';
 sub new {
     my $self = shift->SUPER::new(@_);
 
-    $self->{fields} = {};
-
-    $self->version(76);
     $self->state('request_line');
 
     $self->{max_request_size} ||= 2048;
@@ -25,26 +22,10 @@ sub new {
 
 sub cookies { shift->{cookies} }
 
-sub fields { shift->{fields} }
-
-sub version { @_ > 1 ? $_[0]->{version} = $_[1] : $_[0]->{version} }
-
 sub challenge { @_ > 1 ? $_[0]->{challenge} = $_[1] : $_[0]->{challenge} }
 
 sub resource_name {
     @_ > 1 ? $_[0]->{resource_name} = $_[1] : $_[0]->{resource_name};
-}
-
-sub error {
-    my $self = shift;
-
-    return $self->{error} unless @_;
-
-    my $error = shift;
-    $self->{error} = $error;
-    $self->state('error');
-
-    return $self;
 }
 
 sub parse {
@@ -125,6 +106,13 @@ sub connection { shift->{fields}->{'Connection'} }
 sub checksum {
     my $self = shift;
 
+    if (@_) {
+        $self->{checksum} = shift;
+        return $self;
+    }
+
+    return $self->{checksum} if $self->{checksum};
+
     my $key1 = pack 'N' => $self->key1;
     my $key2 = pack 'N' => $self->key2;
     my $challenge = $self->challenge;
@@ -135,6 +123,13 @@ sub checksum {
 sub key1 {
     my $self = shift;
 
+    if (@_) {
+        $self->{key1} = shift;
+        return $self;
+    }
+
+    return $self->{key1} if $self->{key1};
+
     my $key = $self->{fields}->{'Sec-WebSocket-Key1'};
     return unless $key;
 
@@ -143,6 +138,13 @@ sub key1 {
 
 sub key2 {
     my $self = shift;
+
+    if (@_) {
+        $self->{key2} = shift;
+        return $self;
+    }
+
+    return $self->{key2} if $self->{key2};
 
     my $key = $self->{fields}->{'Sec-WebSocket-Key2'};
     return unless $key;
@@ -172,6 +174,81 @@ sub key {
     return $number / $spaces;
 }
 
+sub _generate_keys {
+    my $self = shift;
+
+    $self->key1($self->_generate_key) unless $self->key1;
+    $self->key2($self->_generate_key) unless $self->key2;
+
+    $self->challenge($self->_generate_challenge) unless $self->challenge;
+
+    return $self;
+}
+
+sub _generate_key {
+    my $self = shift;
+
+    # A random integer from 1 to 12 inclusive
+    my $spaces = int(rand(12)) + 1;
+
+    # The largest integer not greater than 4,294,967,295 divided by spaces
+    my $max = int(4_294_967_295 / $spaces);
+
+    # A random integer from 0 to $max inclusive
+    my $number = int(rand($max + 1));
+
+    # The result of multiplying $number and $spaces together
+    my $product = $number * $spaces;
+
+    # A string consisting of $product, expressed in base ten
+    my $key = "$product";
+
+    # Insert between one and twelve random characters from the ranges U+0021
+    # to U+002F and U+003A to U+007E into $key at random positions.
+    my $random_characters = int(rand(12)) + 1;
+
+    for (0 .. $random_characters) {
+
+        # From 0 to the last position
+        my $random_position = int(rand(length($key) + 1));
+
+        # Random character
+        my $random_character =
+          chr(
+              int(rand(2))
+            ? int(rand(0x2f + 1)) + 0x21
+            : int(rand(0x7e + 1)) + 0x3a);
+
+        # Insert random character at random position
+        substr $key, $random_position, 0, $random_character;
+    }
+
+    # Insert $spaces U+0020 SPACE characters into $key at random positions
+    # other than the start or end of the string.
+    for (0 .. $spaces) {
+
+        # From 1 to the last-1 position
+        my $random_position = int(rand(length($key) - 1)) + 1;
+
+        # Insert
+        substr $key, $random_position, 0, ' ';
+    }
+
+    return $key;
+}
+
+sub _generate_challenge {
+    my $self = shift;
+
+    # A string consisting of eight random bytes (or equivalently, a random 64
+    # bit integer encoded in big-endian order).
+    my $challenge = '';
+
+    $challenge .= chr(int(rand(256))) for 0 .. 8;
+
+    return $challenge;
+}
+
 sub finalize {
     my $self = shift;
 
@@ -186,6 +263,36 @@ sub finalize {
     }
 
     return 1;
+}
+
+sub to_string {
+    my $self = shift;
+
+    my $string = '';
+
+    $string .= "GET " . $self->resource_name . " HTTP/1.1\x0d\x0a";
+
+    $string .= "Upgrade: WebSocket\x0d\x0a";
+    $string .= "Connection: Upgrade\x0d\x0a";
+
+    $string .= "Host: " . $self->host . "\x0d\x0a";
+
+    $string .= "Origin: " . $self->origin . "\x0d\x0a";
+
+    if ($self->version > 75) {
+        $self->_generate_keys;
+
+        $string .= 'Sec-WebSocket-Key1: ' . $self->key1 . "\x0d\x0a";
+        $string .= 'Sec-WebSocket-Key2: ' . $self->key2 . "\x0d\x0a";
+    }
+
+    # TODO cookies
+
+    $string .= "\x0d\x0a";
+
+    $string .= $self->challenge if $self->version > 75;
+
+    return $string;
 }
 
 1;
