@@ -3,17 +3,42 @@ package ReAnimator;
 use strict;
 use warnings;
 
-use base 'EventReactor';
-
+use EventReactor;
 use ReAnimator::Server;
 
 sub new {
-    my $self = shift->SUPER::new(@_);
+    my $class  = shift;
+    my %params = @_;
 
-    $self->{handshake_timeout} ||= 10;
+    my $self = {};
+    bless $self, $class;
+
+    $self->{handshake_timeout} = delete $params{handshake_timeout} || 10;
+
+    $self->{on_accept} = delete $params{on_accept};
+
+    $self->{event_reactor} = delete $params{event_reactor}
+      || $self->_build_event_reactor(%params);
+
+    $self->event_reactor->on_accept(
+        sub {
+            my ($event_reactor, $atom) = @_;
+
+            $atom = ReAnimator::Server->new(
+                atom         => $atom,
+                on_handshake => sub {
+                    $self->{on_accept}->($self, $atom);
+                }
+            );
+        }
+    );
 
     return $self;
 }
+
+sub event_reactor { shift->{event_reactor} }
+
+sub _build_event_reactor { shift; EventReactor->new(@_) }
 
 sub handshake_timeout {
     @_ > 1 ? $_[0]->{handshake_timeout} = $_[1] : $_[0]->{handshake_timeout};
@@ -23,33 +48,12 @@ sub send_broadcast_message {
     my $self    = shift;
     my $message = shift;
 
-    foreach my $atom ($self->accepted_atoms) {
+    foreach my $atom ($self->event_reactor->accepted_atoms) {
         $atom->send_message($message);
     }
 }
 
-sub _build_accepted_atom {
-    my $self = shift;
-
-    my $server;
-    $server = ReAnimator::Server->new(
-        @_,
-        on_accept => sub {
-            $self->set_timeout(
-                $server => $self->handshake_timeout => sub {
-                    return if $server->handshake->is_done;
-
-                    $server->error('Handshake timeout.');
-                    $self->drop($server);
-                }
-            );
-        },
-        on_handshake => sub {
-            $self->on_accept->($self, @_);
-        }
-    );
-
-    return $server;
-}
+sub listen { shift->event_reactor->listen }
+sub drop   { shift->event_reactor->drop(@_) }
 
 1;

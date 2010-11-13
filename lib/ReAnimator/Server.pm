@@ -3,16 +3,25 @@ package ReAnimator::Server;
 use strict;
 use warnings;
 
-use base 'EventReactor::AcceptedAtom';
-
 use ReAnimator::WebSocket::Handshake;
 use ReAnimator::WebSocket::Frame;
 
-sub new {
-    my $self = shift->SUPER::new(@_);
+require Carp;
 
-    $self->{frame}     = ReAnimator::WebSocket::Frame->new;
-    $self->{handshake} = ReAnimator::WebSocket::Handshake->new(secure => $self->secure);
+sub new {
+    my $class = shift;
+
+    my $self = {@_};
+    bless $self, $class;
+
+    my $atom = $self->atom;
+    Carp::croak qq/Something went wrong during atom decoration/ unless $atom;
+
+    $atom->on_read(sub { $self->parse($_[1]) });
+
+    $self->{frame} = ReAnimator::WebSocket::Frame->new;
+    $self->{handshake} =
+      ReAnimator::WebSocket::Handshake->new(secure => $atom->secure);
 
     $self->{on_message}   ||= sub { };
     $self->{on_handshake} ||= sub { };
@@ -21,6 +30,8 @@ sub new {
 
     return $self;
 }
+
+sub atom { shift->{atom} }
 
 sub handshake { @_ > 1 ? $_[0]->{handshake} = $_[1] : $_[0]->{handshake} }
 
@@ -34,7 +45,7 @@ sub on_request {
     @_ > 1 ? $_[0]->{on_request} = $_[1] : $_[0]->{on_request};
 }
 
-sub read {
+sub parse {
     my $self  = shift;
     my $chunk = shift;
 
@@ -52,7 +63,7 @@ sub read {
 
             $self->write(
                 $handshake->res->to_string => sub {
-                    my $self = shift;
+                    my $atom = shift;
 
                     $self->on_handshake->($self);
                 }
@@ -72,11 +83,17 @@ sub read {
     return 1;
 }
 
+sub error { shift->atom->error(@_) }
+sub write { shift->atom->write(@_) }
+
 sub send_message {
     my $self    = shift;
     my $message = shift;
 
-    return unless $self->handshake->is_done;
+    unless ($self->handshake->is_done) {
+        Carp::carp qq/Can't send_message, handshake is not done yet./;
+        return;
+    }
 
     my $frame = ReAnimator::WebSocket::Frame->new($message);
     $self->write($frame->to_string);

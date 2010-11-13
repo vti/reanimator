@@ -158,7 +158,8 @@ sub connect {
 
     Carp::croak q/address and port are required/ unless $address && $port;
 
-    my $socket = $self->_build_client_socket(%params);
+    my $socket = delete $params{socket}
+      || $self->_build_client_socket(%{delete $params{socket_args} || {}});
 
     my %args;
     if (!$self->server) {
@@ -176,7 +177,8 @@ sub connect {
     my $atom = $self->_build_connected_atom(
         handle => $socket,
         secure => $self->secure,
-        %args
+        %args,
+        %params
     );
 
     $self->add_atom($atom);
@@ -197,6 +199,7 @@ sub connect {
     else {
         $atom->error($!);
         $self->drop($atom);
+        return;
     }
 
     $self->start unless $self->server;
@@ -345,7 +348,7 @@ sub _accept {
         unless ($self->secure) {
             $self->add_atom($atom);
 
-            return $self->_accept_atom($atom);
+            return $self->_atom_accepted($atom);
         }
 
         unless ($self->key_file && $self->cert_file) {
@@ -392,7 +395,7 @@ sub _accept {
 
         if ($socket->accept_SSL) {
             $self->loop->mask_rw($atom->handle);
-            return $self->_accept_atom($atom);
+            return $self->_atom_accepted($atom);
         }
         elsif ($! && $! == EAGAIN) {
             $self->loop->mask_ro($socket);
@@ -403,14 +406,14 @@ sub _accept {
         my $socket = $atom->handle;
 
         $atom->{socket} = $socket;
-        return $self->_accept_atom($atom) if $socket->accept_SSL;
+        return $self->_atom_accepted($atom) if $socket->accept_SSL;
         return if $! && $! != EAGAIN;
     }
 
     $self->drop($atom);
 }
 
-sub _accept_atom {
+sub _atom_accepted {
     my $self = shift;
     my $atom = shift;
 
@@ -529,12 +532,13 @@ sub _build_server_socket {
 
     my $socket = IO::Socket::INET->new(
         Proto        => 'tcp',
-        LocalAddress => $params{address},
-        LocalPort    => $params{port},
+        LocalAddress => delete $params{address},
+        LocalPort    => delete $params{port},
         Type         => SOCK_STREAM,
         Listen       => SOMAXCONN,
         ReuseAddr    => 1,
-        Blocking     => 0
+        Blocking     => 0,
+        %params
     ) or Carp::croak qq/Can't create a listen socket: $!/;
 
     $socket->blocking(0);
@@ -543,13 +547,13 @@ sub _build_server_socket {
 }
 
 sub _build_client_socket {
-    my $self   = shift;
-    my %params = @_;
+    my $self = shift;
 
     my $socket = IO::Socket::INET->new(
         Proto    => 'tcp',
         Type     => SOCK_STREAM,
-        Blocking => 0
+        Blocking => 0,
+        @_
     );
 
     $socket->blocking(0);

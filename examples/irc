@@ -20,7 +20,8 @@ ReAnimator->new(
 
         $client->send_message('Connecting to ' . $irc_server . '...');
 
-        my $slave = $self->connect(
+        # Raw connection without WebSocket handshake
+        my $slave = $self->event_reactor->connect(
             address    => $irc_server,
             port       => $irc_port,
             on_connect => sub {
