@@ -24,10 +24,17 @@ sub new {
         sub {
             my ($event_reactor, $atom) = @_;
 
-            $atom = ReAnimator::Server->new(
+            $atom->on_error(
+                sub {
+                    $self->drop($atom);
+                }
+            );
+
+            my $conn;
+            $conn = ReAnimator::Server->new(
                 atom         => $atom,
                 on_handshake => sub {
-                    $self->{on_accept}->($self, $atom);
+                    $self->{on_accept}->($self, $conn);
                 }
             );
         }
