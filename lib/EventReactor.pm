@@ -260,12 +260,14 @@ sub set_interval {
 
     my $args     = ref $_[-1] eq 'HASH' ? pop : {};
     my $cb       = pop;
-    my $fd       = @_ == 2 ? shift->handle->fileno : $self->server->fileno;
+    my $fd       = @_ > 1 ? shift->handle->fileno : $self->server->fileno;
+    my $name     = @_ > 1 ? shift : '';
     my $interval = shift;
 
     my $timer = $self->_build_timer(interval => $interval, cb => $cb, %$args);
 
-    $self->_add_timer($fd => $timer);
+    my $id = "$fd:" . ($name || "$timer");
+    $self->_add_timer($id => $timer);
 
     return $self;
 }
@@ -512,13 +514,10 @@ sub _hup {
 
 sub _add_timer {
     my $self  = shift;
-    my $fd    = shift;
+    my $id    = shift;
     my $timer = shift;
 
-    die 'Unknown timer id'
-      unless $self->server->fileno == $fd || exists $self->atoms->{$fd};
-
-    $self->timers->{$fd} = $timer;
+    $self->timers->{$id} = $timer;
 }
 
 sub _build_loop { EventReactor::Loop->build }
