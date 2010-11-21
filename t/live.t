@@ -26,18 +26,22 @@ my $event_reactor = EventReactor->new(
         );
 
         $client->write('Hello!');
-    }
-)->listen;
-
-$event_reactor->connect(
-    on_connect => sub {
-        my ($atom) = @_;
     },
-    on_read => sub {
-        my ($atom, $chunk) = @_;
+    on_connect => sub {
+        my ($self, $atom) = @_;
 
-        $atom->write($chunk);
+        $atom->on_read(
+            sub {
+                my ($atom, $chunk) = @_;
+
+                $atom->write($chunk);
+            }
+        );
     }
 );
+
+$event_reactor->listen;
+
+$event_reactor->connect;
 
 $event_reactor->start;

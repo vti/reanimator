@@ -18,6 +18,7 @@ sub new {
 sub secure { @_ > 1 ? $_[0]->{secure} = $_[1] : $_[0]->{secure} }
 
 sub host { @_ > 1 ? $_[0]->{host} = $_[1] : $_[0]->{host} }
+sub port { @_ > 1 ? $_[0]->{port} = $_[1] : $_[0]->{port} }
 
 sub resource_name {
     @_ > 1 ? $_[0]->{resource_name} = $_[1] : $_[0]->{resource_name};
@@ -32,9 +33,10 @@ sub parse {
 
     $self->secure(1) if $scheme =~ m/ss$/;
 
-    my ($host) = $string =~ m{^$scheme://(.*?)(?:\/|$)};
+    my ($host, $port) = $string =~ m{^$scheme://([^:\/]+)(?::(\d+))?(?:|\/|$)};
     $host = '/' unless defined $host && $host ne '';
     $self->host($host);
+    $self->port($port);
 
     my ($path) = $string =~ m{^$scheme://(?:.*?)(/.*?)(?:\?|$)};
     $path = '/' unless defined $path && $path ne '';

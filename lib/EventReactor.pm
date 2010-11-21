@@ -161,23 +161,14 @@ sub connect {
     my $socket = delete $params{socket}
       || $self->_build_client_socket(%{delete $params{socket_args} || {}});
 
-    my %args;
-    if (!$self->server) {
-        %args = (
-            on_connect => sub {
-                print "Connected\n" if DEBUG;
-
-                $self->on_connect->($self, shift);
-            },
-            on_error      => sub { $self->stop },
-            on_disconnect => sub { $self->stop }
-        );
-    }
-
     my $atom = $self->_build_connected_atom(
-        handle => $socket,
-        secure => $self->secure,
-        %args,
+        handle     => $socket,
+        secure     => $self->secure,
+        on_connect => sub {
+            print "Connected\n" if DEBUG;
+
+            $self->on_connect->($self, shift);
+        },
         %params
     );
 
@@ -308,6 +299,8 @@ sub _loop_until_i_die {
         }
 
         last unless $self->continue;
+
+        last unless $self->server || scalar keys %{$self->atoms};
     }
 }
 

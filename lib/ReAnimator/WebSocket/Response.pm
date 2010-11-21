@@ -3,12 +3,14 @@ package ReAnimator::WebSocket::Response;
 use strict;
 use warnings;
 
+use base 'ReAnimator::WebSocket::Message';
+
 use ReAnimator::WebSocket::URL;
 use ReAnimator::WebSocket::Cookie::Response;
 
 use Digest::MD5 'md5';
 
-use base 'ReAnimator::WebSocket::Message';
+require Carp;
 
 sub new {
     my $self = shift->SUPER::new(@_);
@@ -22,12 +24,13 @@ sub new {
     return $self;
 }
 
-sub challenge { @_ > 1 ? $_[0]->{challenge} = $_[1] : $_[0]->{challenge} }
-
 sub origin {
     my $self = shift;
 
-    return $self->{fields}->{'Sec-WebSocket-Origin'} unless @_;
+    unless (@_) {
+        return $self->{fields}->{'Sec-WebSocket-Origin'}
+          ||= delete $self->{origin};
+    }
 
     $self->{fields}->{'Sec-WebSocket-Origin'} = shift;
 
@@ -37,7 +40,10 @@ sub origin {
 sub location {
     my $self = shift;
 
-    return $self->{fields}->{'Sec-WebSocket-Location'} unless @_;
+    unless (@_) {
+        return $self->{fields}->{'Sec-WebSocket-Location'}
+          ||= delete $self->{location};
+    }
 
     $self->{fields}->{'Sec-WebSocket-Location'} = shift;
 
@@ -51,7 +57,33 @@ sub resource_name {
     @_ > 1 ? $_[0]->{resource_name} = $_[1] : $_[0]->{resource_name};
 }
 
-sub checksum { @_ > 1 ? $_[0]->{checksum} = $_[1] : $_[0]->{checksum} }
+sub number1   { @_ > 1 ? $_[0]->{number1}   = $_[1] : $_[0]->{number1} }
+sub number2   { @_ > 1 ? $_[0]->{number2}   = $_[1] : $_[0]->{number2} }
+sub challenge { @_ > 1 ? $_[0]->{challenge} = $_[1] : $_[0]->{challenge} }
+
+sub checksum {
+    my $self = shift;
+    my $checksum = shift;
+
+    if (defined $checksum) {
+        $self->{checksum} = $checksum;
+        return $self;
+    }
+
+    return $self->{checksum} if defined $self->{checksum};
+
+    Carp::croak qq/number1 is required/   unless defined $self->number1;
+    Carp::croak qq/number2 is required/   unless defined $self->number2;
+    Carp::croak qq/challenge is required/ unless defined $self->challenge;
+
+    $checksum = '';
+    $checksum .= pack 'N' => $self->number1;
+    $checksum .= pack 'N' => $self->number2;
+    $checksum .= $self->challenge;
+    $checksum = md5($checksum);
+
+    return $self->{checksum} ||= $checksum;
+}
 
 sub cookies { @_ > 1 ? $_[0]->{cookies} = $_[1] : $_[0]->{cookies} }
 
@@ -100,7 +132,6 @@ sub parse {
     }
 
     if ($self->state eq 'body') {
-
         if ($self->origin && $self->location) {
             return 1 if length $chunk < 16;
 
@@ -110,7 +141,7 @@ sub parse {
             }
 
             $self->version(76);
-            $self->challenge($chunk);
+            $self->checksum($chunk);
         }
         else {
             $self->version(75);
@@ -127,15 +158,6 @@ sub parse {
 
 sub finalize {
     my $self = shift;
-
-    my $challenge = $self->challenge;
-
-    my $expected = '';
-    $expected .= pack 'N' => $self->{number1};
-    $expected .= pack 'N' => $self->{number2};
-    $expected .= $self->{key3};
-    $expected = md5 $expected;
-    return unless $challenge eq $expected;
 
     my $url = ReAnimator::WebSocket::URL->new;
     return unless $url->parse($self->location);
@@ -158,13 +180,16 @@ sub to_string {
     $string .= "Connection: Upgrade\x0d\x0a";
 
     if ($self->version > 75) {
+        Carp::croak qq/host is required/ unless defined $self->host;
+
         my $location = ReAnimator::WebSocket::URL->new(
             host          => $self->host,
             secure        => $self->secure,
             resource_name => $self->resource_name,
         );
 
-        $string .= 'Sec-WebSocket-Origin: ' . $self->origin . "\x0d\x0a";
+        my $origin = $self->origin ? $self->origin : 'http://' . $location->host;
+        $string .= 'Sec-WebSocket-Origin: ' . $origin . "\x0d\x0a";
         $string .= 'Sec-WebSocket-Location: ' . $location->to_string . "\x0d\x0a";
     }
 
