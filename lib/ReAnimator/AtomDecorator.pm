@@ -40,8 +40,12 @@ sub on_handshake {
     @_ > 1 ? $_[0]->{on_handshake} = $_[1] : $_[0]->{on_handshake};
 }
 
-sub error { shift->atom->error(@_) }
-sub write { shift->atom->write(@_) }
+sub handle { shift->atom->handle }
+sub error  { shift->atom->error(@_) }
+sub write  { shift->atom->write(@_) }
+
+sub connected    { shift->atom->connected }
+sub disconnected { shift->atom->disconnected }
 
 sub _parse_frames {
     my ($self, $chunk) = @_;
