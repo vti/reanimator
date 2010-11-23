@@ -5,25 +5,17 @@ use warnings;
 
 use base 'ReAnimator::AtomDecorator';
 
-use ReAnimator::WebSocket::URL;
+use Protocol::WebSocket::Handshake::Client;
 
 sub new {
     my $self = shift->SUPER::new(@_);
 
-    my $url = $self->{url};
-    $url = ReAnimator::WebSocket::URL->new->parse($url) unless ref $url;
-
-    my $req = $self->handshake->req;
-
-    my $host = $url->host;
-    $host .= ':' . $url->port if defined $url->port;
-    $req->host($host);
-
-    $req->resource_name($url->resource_name);
+    my $handshake = $self->handshake;
+    $handshake->url($self->{url});
 
     my $atom = $self->atom;
     $atom->write(
-        $req->to_string => sub {
+        $handshake->to_string => sub {
             $atom->on_read(sub { $self->parse($_[1]) });
         }
     );
@@ -41,22 +33,15 @@ sub parse {
     my $self  = shift;
     my $chunk = shift;
 
-    my $req = $self->handshake->req;
-    my $res = $self->handshake->res;
+    my $handshake = $self->handshake;
 
-    unless ($res->is_done) {
-        unless ($res->parse($chunk)) {
-            $self->error($res->error);
+    unless ($handshake->is_done) {
+        unless ($handshake->parse($chunk)) {
+            $self->error($handshake->error);
             return;
         }
 
-        if ($res->is_done) {
-
-            if ($req->version > 75 && $req->checksum ne $res->checksum) {
-                warn 'CHECKSUM IS WRONG!';
-                $self->error('Checksum is wrong');
-                return;
-            }
+        if ($handshake->is_done) {
 
             #$self->on_request->($self, $self->handshake);
 
@@ -83,5 +68,7 @@ sub send_message {
 
     $self->SUPER::send_message($message);
 }
+
+sub _build_handshake { shift; Protocol::WebSocket::Handshake::Client->new(@_) }
 
 1;

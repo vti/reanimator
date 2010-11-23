@@ -5,6 +5,8 @@ use warnings;
 
 use base 'ReAnimator::AtomDecorator';
 
+use Protocol::WebSocket::Handshake::Server;
+
 sub new {
     my $self = shift->SUPER::new(@_);
 
@@ -24,32 +26,19 @@ sub parse {
     my $self  = shift;
     my $chunk = shift;
 
-    my $req = $self->handshake->req;
-    my $res = $self->handshake->res;
+    my $handshake = $self->handshake;
 
-    unless ($req->is_done) {
-        unless ($req->parse($chunk)) {
-            $self->error($req->error);
+    unless ($handshake->is_done) {
+        unless ($handshake->parse($chunk)) {
+            $self->error($handshake->error);
             return;
         }
 
-        if ($req->is_done) {
-            $res->version($req->version);
-            $res->host($req->host);
-            #$res->secure($req->secure);
-            $res->resource_name($req->resource_name);
-            $res->origin($req->origin);
-
-            if ($req->version > 75) {
-                $res->number1($req->number1);
-                $res->number2($req->number2);
-                $res->challenge($req->challenge);
-            }
-
+        if ($handshake->is_done) {
             $self->on_request->($self, $self->handshake);
 
             $self->write(
-                $res->to_string => sub {
+                $handshake->to_string => sub {
                     my $atom = shift;
 
                     $self->on_handshake->($self);
@@ -77,5 +66,7 @@ sub send_message {
 
     $self->SUPER::send_message($message);
 }
+
+sub _build_handshake { shift; Protocol::WebSocket::Handshake::Server->new(@_) }
 
 1;

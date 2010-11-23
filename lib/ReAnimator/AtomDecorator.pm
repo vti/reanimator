@@ -3,7 +3,6 @@ package ReAnimator::AtomDecorator;
 use strict;
 use warnings;
 
-use Protocol::WebSocket::Handshake;
 use Protocol::WebSocket::Frame;
 
 require Carp;
@@ -26,9 +25,6 @@ sub new {
     return $self;
 }
 
-sub _build_frame     { shift; Protocol::WebSocket::Frame->new(@_) }
-sub _build_handshake { shift; Protocol::WebSocket::Handshake->new(@_) }
-
 sub atom  { shift->{atom} }
 sub frame { shift->{frame} }
 
@@ -47,6 +43,15 @@ sub write  { shift->atom->write(@_) }
 sub connected    { shift->atom->connected }
 sub disconnected { shift->atom->disconnected }
 
+sub send_message {
+    my ($self, $message) = @_;
+
+    my $frame = Protocol::WebSocket::Frame->new($message);
+    $self->write($frame->to_string);
+}
+
+sub _build_frame { shift; Protocol::WebSocket::Frame->new(@_) }
+
 sub _parse_frames {
     my ($self, $chunk) = @_;
 
@@ -56,13 +61,6 @@ sub _parse_frames {
     while (my $message = $frame->next) {
         $self->on_message->($self, $message);
     }
-}
-
-sub send_message {
-    my ($self, $message) = @_;
-
-    my $frame = Protocol::WebSocket::Frame->new($message);
-    $self->write($frame->to_string);
 }
 
 1;

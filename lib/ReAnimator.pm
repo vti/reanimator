@@ -4,6 +4,8 @@ use strict;
 use warnings;
 
 use EventReactor;
+use Protocol::WebSocket::URL;
+
 use ReAnimator::Client;
 use ReAnimator::Server;
 
@@ -72,7 +74,7 @@ sub connect {
     my $self   = shift;
     my %params = @_;
 
-    my $url = ReAnimator::WebSocket::URL->new->parse(delete $params{url});
+    my $url = Protocol::WebSocket::URL->new->parse(delete $params{url});
 
     $self->event_reactor->connect(
         address    => $url->host,
