@@ -47,7 +47,7 @@ sub send_message {
     my ($self, $message) = @_;
 
     my $frame = Protocol::WebSocket::Frame->new($message);
-    $self->write($frame->to_string);
+    $self->write($frame->to_bytes);
 }
 
 sub _build_frame { shift; Protocol::WebSocket::Frame->new(@_) }
